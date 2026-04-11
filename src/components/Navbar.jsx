@@ -1,0 +1,232 @@
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseClient";
+import { Menu, X, User, LogOut, ShieldAlert } from "lucide-react";
+
+const Navbar = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
+
+  // FIX 1: Initialize role from Local Storage so it's instant
+  const [role, setRole] = useState(
+    localStorage.getItem("userRole") || "client"
+  );
+
+  useEffect(() => {
+    const fetchRole = async (userId) => {
+      const { data } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", userId)
+        .maybeSingle();
+      if (data) {
+        setRole(data.role);
+        // FIX 2: Save role to storage for next refresh
+        localStorage.setItem("userRole", data.role);
+      }
+    };
+
+    const checkSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        // Only fetch if we don't have it, or to update it
+        fetchRole(session.user.id);
+      } else {
+        // Clear if no session
+        localStorage.removeItem("userRole");
+        setRole("client");
+      }
+    };
+    checkSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_OUT" || !session) {
+        setUser(null);
+        setRole("client");
+        localStorage.removeItem("userRole");
+      } else if (session?.user) {
+        setUser(session.user);
+        fetchRole(session.user.id);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    localStorage.clear(); // Clears everything
+    setUser(null);
+    setRole("client");
+    setIsOpen(false);
+    navigate("/login");
+  };
+
+  const actionLink =
+    role === "admin"
+      ? { text: "Admin Panel", path: "/admin", icon: <ShieldAlert size={18} /> }
+      : role === "designer"
+      ? { text: "Dashboard", path: "/dashboard", icon: null }
+      : { text: "Designer? Collab with us", path: "/collab", icon: null };
+
+  return (
+    <nav className="bg-white/95 backdrop-blur-lg border-b border-gray-200 fixed w-full z-[100] top-0 shadow-sm transition-all">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-20">
+          <Link to="/" className="flex items-center gap-3 group">
+            <div className="w-10 h-10 bg-brand-accent rounded-xl flex items-center justify-center shadow-md group-hover:shadow-lg transition-all group-hover:-translate-y-0.5">
+              <span className="text-white font-black text-xl">V</span>
+            </div>
+            <span className="text-2xl font-black text-gray-900 tracking-tight group-hover:text-brand-accent transition-colors">
+              Vishwakarmans
+            </span>
+          </Link>
+
+          <div className="hidden md:flex items-center space-x-8">
+            <Link
+              to="/"
+              className="text-gray-600 hover:text-brand-accent font-semibold transition-colors"
+            >
+              Home
+            </Link>
+            <Link
+              to="/designers"
+              className="text-gray-600 hover:text-brand-accent font-semibold transition-colors"
+            >
+              Find Designers
+            </Link>
+            <Link
+              to="/connect"
+              className="text-gray-600 hover:text-brand-accent font-semibold transition-colors"
+            >
+              Connections
+            </Link>
+            <Link
+              to={actionLink.path}
+              className={`flex items-center gap-2 font-semibold transition-colors ${
+                role !== "client"
+                  ? "text-brand-accent"
+                  : "text-gray-600 hover:text-brand-accent"
+              }`}
+            >
+              {actionLink.icon} {actionLink.text}
+            </Link>
+            {user ? (
+              <div className="flex items-center gap-4 pl-6 border-l border-gray-200">
+                <Link
+                  to="/profile"
+                  className="flex items-center gap-2 text-gray-700 hover:text-brand-accent transition-all font-semibold"
+                >
+                  <div className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center border border-gray-200">
+                    <User size={18} className="text-gray-600" />
+                  </div>
+                  <span>
+                    {user.user_metadata?.full_name?.split(" ")[0] || "Profile"}
+                  </span>
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors p-2"
+                >
+                  <LogOut size={20} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-4 pl-6 border-l border-gray-200">
+                <Link
+                  to="/login"
+                  className="text-gray-700 font-bold hover:text-brand-accent transition-colors"
+                >
+                  Login
+                </Link>
+                <Link
+                  to="/register"
+                  className="bg-brand-accent text-white px-5 py-2.5 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-500/20 transition-all active:scale-95"
+                >
+                  Sign Up
+                </Link>
+              </div>
+            )}
+          </div>
+
+          <div className="md:hidden">
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="text-gray-900 p-2 focus:outline-none"
+            >
+              {isOpen ? <X size={28} /> : <Menu size={28} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="md:hidden bg-white border-t border-gray-200 p-4 space-y-4 animate-fade-in shadow-xl">
+          <Link
+            to="/"
+            onClick={() => setIsOpen(false)}
+            className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl"
+          >
+            Home
+          </Link>
+          <Link
+            to="/designers"
+            onClick={() => setIsOpen(false)}
+            className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl"
+          >
+            Find Designers
+          </Link>
+          <Link
+            to="/connect"
+            onClick={() => setIsOpen(false)}
+            className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl"
+          >
+            Connections
+          </Link>
+          <Link
+            to={actionLink.path}
+            onClick={() => setIsOpen(false)}
+            className="block px-4 py-3 text-brand-accent font-bold hover:bg-gray-50 rounded-xl"
+          >
+            {actionLink.text}
+          </Link>
+          <div className="border-t border-gray-200 pt-4 mt-2">
+            {user ? (
+              <div className="space-y-2">
+                <Link
+                  to="/profile"
+                  onClick={() => setIsOpen(false)}
+                  className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl"
+                >
+                  User Profile
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="text-red-500 w-full text-left font-bold px-4 py-3 flex items-center gap-3 hover:bg-red-50 rounded-xl transition-colors"
+                >
+                  <LogOut size={18} /> Sign Out
+                </button>
+              </div>
+            ) : (
+              <Link
+                to="/login"
+                onClick={() => setIsOpen(false)}
+                className="text-brand-accent block font-bold px-4 py-3 hover:bg-gray-50 rounded-xl"
+              >
+                Login / Sign Up
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+    </nav>
+  );
+};
+
+export default Navbar;

@@ -1,7 +1,5 @@
 # 🏛️ Vishwakarmans 
 
-![Vishwakarmans Hero](public/background.jpg)
-
 A premium web marketplace built with React and Vite that bridges the gap between clients and elite interior/commercial design professionals. The platform allows users to browse verified portfolios, compare expertise, and connect directly for collaborative projects.
 
 ## 📸 Exploring Design Categories

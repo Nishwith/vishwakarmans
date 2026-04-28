@@ -1,16 +1,38 @@
-# React + Vite
+# 🏛️ Vishwakarmans 
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+![Vishwakarmans Hero](public/background.jpg)
 
-Currently, two official plugins are available:
+A premium web marketplace built with React and Vite that bridges the gap between clients and elite interior/commercial design professionals. The platform allows users to browse verified portfolios, compare expertise, and connect directly for collaborative projects.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 📸 Exploring Design Categories
+<p align="center">
+  <img src="public/interior.jpg" width="45%" alt="Interior Design">
+  <img src="public/Commercial.jpg" width="45%" alt="Commercial Design">
+</p>
+<p align="center">
+  <em>Showcasing curated materials for the boutique design experience.</em><br>
+  <img src="public/assets/boutique_studio_materials.png" width="60%" alt="Studio Materials">
+</p>
 
-## React Compiler
+## 🚀 Key Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+* **Role-Based Architecture:** Secure routing and dynamic dashboard rendering for Clients, Designers, and Administrators using `react-router-dom`.
+* **Backend as a Service (BaaS):** Comprehensive integration with **Supabase** for user authentication, session persistence, and real-time PostgreSQL database management.
+* **Serverless Edge Functions:** Utilizes Supabase Edge Functions (Deno/TypeScript) to securely bypass Row Level Security (RLS) for automated, secure designer onboarding and profile generation.
+* **Staggered Scroll Animations:** A custom `RevealOnScroll` component utilizing the native `IntersectionObserver` API to orchestrate performant, premium fade-in animations.
+* **Blazing Fast Performance:** Powered by Vite for instant Hot Module Replacement (HMR) and highly optimized production builds.
 
-## Expanding the ESLint configuration
+## 🛠️ Tech Stack
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+* **Frontend Framework:** React 19, Vite
+* **Styling & UI:** Tailwind CSS, Framer Motion, Lucide React
+* **Backend:** Supabase (Auth, Postgres)
+* **Serverless:** Deno Edge Functions
+
+## ⚙️ Setup & Installation
+
+1. Clone the repository.
+2. Install dependencies by running `npm install`.
+3. Set up your Supabase project credentials in your environment variables.
+4. Run `npm run dev` to start the Vite development server.
+5. To deploy the edge functions, use the Supabase CLI: `supabase functions deploy admin-onboard`.

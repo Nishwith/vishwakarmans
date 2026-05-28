@@ -41,6 +41,14 @@ const Register = () => {
       return;
     }
 
+    // --- NEW: Phone Number Validation ---
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phoneRegex.test(formData.phone)) {
+      toast.error("Please enter a valid 10-digit phone number.");
+      return;
+    }
+    // ------------------------------------
+
     // 2. Determine Final City Value
     let finalCity = formData.city;
     if (formData.city === "Other") {
@@ -85,7 +93,7 @@ const Register = () => {
             .from("designers")
             .update({ user_id: data.user.id })
             .eq("id", existingProfile.id);
-            
+
           console.log("VIP Profile Claimed successfully!");
         }
       }
@@ -96,7 +104,7 @@ const Register = () => {
         // Case: Email Confirmation is ON (No session created yet)
         toast.success(
           "Registration successful! Please check your email to confirm your account.",
-          { duration: 6000 }
+          { duration: 6000 },
         );
         navigate("/login");
       } else {
@@ -117,7 +125,9 @@ const Register = () => {
 
       <div className="w-full max-w-md bg-white border border-gray-200 p-8 rounded-2xl shadow-2xl relative z-10">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            Create Account
+          </h2>
           <p className="text-gray-500">Join thousands of homeowners</p>
         </div>
 
@@ -175,7 +185,7 @@ const Register = () => {
                   name="phone"
                   onChange={handleChange}
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-gray-900 focus:border-brand-accent focus:outline-none transition-colors"
-                  placeholder="+91..."
+                  placeholder="9876543210"
                   required
                 />
               </div>

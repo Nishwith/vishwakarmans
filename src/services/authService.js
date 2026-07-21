@@ -1,0 +1,90 @@
+import { supabase } from './supabaseClient';
+
+/** Get current session (null if anonymous) */
+export const getSession = () =>
+  supabase.auth.getSession().then(({ data: { session } }) => session);
+
+/** Get current user (null if anonymous) */
+export const getUser = () =>
+  supabase.auth.getUser().then(({ data: { user } }) => user);
+
+/** Email + password sign in. Returns { user, session }. */
+export const signInWithPassword = async (email, password) => {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data;
+};
+
+/** Email + password sign up with metadata. Returns { user, session }. */
+export const signUp = async (email, password, metadata = {}) => {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: metadata },
+  });
+  if (error) throw error;
+  return data;
+};
+
+/** Google OAuth redirect. */
+export const signInWithGoogle = async () => {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      // This dynamically grabs the current domain (localhost:5173 or your netlify URL)
+      redirectTo: `${window.location.origin}/`
+    }
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+/** Sign out and clear local state. */
+export const signOut = async () => {
+  await supabase.auth.signOut();
+  localStorage.clear();
+};
+
+/** Send password reset email. */
+export const sendPasswordResetEmail = async (email) => {
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    // This tells the Supabase server to redirect here after verifying the click
+    redirectTo: 'https://vishwakarmans.netlify.app/update-password',
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+/** Update current user's password. */
+export const updatePassword = async (password) => {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
+};
+
+/** Subscribe to auth state changes. Returns unsubscribe function. */
+export const onAuthStateChange = (callback) => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(callback);
+  return () => subscription.unsubscribe();
+};
+
+/** Fetch the public.users row for a given user id. */
+export const getUserProfile = async (userId) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', userId)
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+/** Update the public.users row for a given user id. */
+export const updateUserProfile = async (userId, updates) => {
+  const { error } = await supabase
+    .from('users')
+    .update(updates)
+    .eq('id', userId);
+  if (error) throw error;
+};

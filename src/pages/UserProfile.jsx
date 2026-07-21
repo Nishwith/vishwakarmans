@@ -13,8 +13,11 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { signOut } from "../services/authService";
 
 const UserProfile = () => {
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [user, setUser] = useState(null);
@@ -53,6 +56,12 @@ const UserProfile = () => {
 
   const handleUpdate = async (e) => {
     e.preventDefault();
+    // ponytail: reuse same Indian phone regex from complete-profile (BUG-006)
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phoneRegex.test(formData.phone)) {
+      toast.error("Please enter a valid phone number.");
+      return;
+    }
     setSaving(true);
     try {
       // 1. Update Auth Metadata (so session stays fresh)
@@ -79,8 +88,13 @@ const UserProfile = () => {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/login");
+    try {
+      await signOut();
+      queryClient.clear();
+      navigate("/login");
+    } catch {
+      // fallback
+    }
   };
 
   // Helper to format date

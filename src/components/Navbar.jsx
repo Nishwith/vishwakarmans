@@ -1,72 +1,32 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { supabase } from "../supabaseClient";
-import { Menu, X, User, LogOut, ShieldAlert } from "lucide-react";
+import { Menu, X, User, LogOut, ShieldAlert, Loader2 } from "lucide-react";
+import { useCurrentUser, useUserProfile } from "../hooks/useAuth";
+import { signOut } from "../services/authService";
+import { useQueryClient } from "@tanstack/react-query";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [user, setUser] = useState(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  // FIX 1: Initialize role from Local Storage so it's instant
-  const [role, setRole] = useState(
-    localStorage.getItem("userRole") || "client"
-  );
-
-  useEffect(() => {
-    const fetchRole = async (userId) => {
-      const { data } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", userId)
-        .maybeSingle();
-      if (data) {
-        setRole(data.role);
-        // FIX 2: Save role to storage for next refresh
-        localStorage.setItem("userRole", data.role);
-      }
-    };
-
-    const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-        // Only fetch if we don't have it, or to update it
-        fetchRole(session.user.id);
-      } else {
-        // Clear if no session
-        localStorage.removeItem("userRole");
-        setRole("client");
-      }
-    };
-    checkSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "SIGNED_OUT" || !session) {
-        setUser(null);
-        setRole("client");
-        localStorage.removeItem("userRole");
-      } else if (session?.user) {
-        setUser(session.user);
-        fetchRole(session.user.id);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  // Consume decoupled global query state
+  const { data: user, isLoading: userLoading } = useCurrentUser();
+  const { data: profile, isLoading: profileLoading } = useUserProfile(user?.id);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    localStorage.clear(); // Clears everything
-    setUser(null);
-    setRole("client");
-    setIsOpen(false);
-    navigate("/login");
+    try {
+      await signOut();
+      queryClient.clear();
+      setIsOpen(false);
+      navigate("/login");
+    } catch {
+      // Fail silently or toast error
+    }
   };
+
+  const role = profile?.role || "client";
+  const loading = userLoading || (user && profileLoading);
 
   const actionLink =
     role === "admin"
@@ -117,7 +77,12 @@ const Navbar = () => {
             >
               {actionLink.icon} {actionLink.text}
             </Link>
-            {user ? (
+            
+            {loading ? (
+              <div className="flex items-center justify-center pl-6 border-l border-gray-200">
+                <Loader2 className="animate-spin text-gray-300 w-5 h-5" />
+              </div>
+            ) : user ? (
               <div className="flex items-center gap-4 pl-6 border-l border-gray-200">
                 <Link
                   to="/profile"
@@ -197,7 +162,11 @@ const Navbar = () => {
             {actionLink.text}
           </Link>
           <div className="border-t border-gray-200 pt-4 mt-2">
-            {user ? (
+            {loading ? (
+              <div className="flex justify-center py-2">
+                <Loader2 className="animate-spin text-gray-300 w-5 h-5" />
+              </div>
+            ) : user ? (
               <div className="space-y-2">
                 <Link
                   to="/profile"

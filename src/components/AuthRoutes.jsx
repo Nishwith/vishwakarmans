@@ -1,117 +1,118 @@
-import React, { useEffect, useState } from "react";
-import { Navigate, Outlet } from "react-router-dom";
-import { supabase } from "../supabaseClient";
+import React from "react";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { useCurrentUser, useUserProfile } from "../hooks/useAuth";
 import { Loader2 } from "lucide-react";
+
+// Full-screen branded loading spinner to prevent session flicker (FOUC)
+const LoadingScreen = () => (
+  <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50">
+    <div className="relative flex flex-col items-center space-y-4">
+      <Loader2 className="animate-spin text-brand-accent w-12 h-12 stroke-[2.5]" />
+      <span className="text-sm font-semibold text-gray-500 tracking-wider font-heading uppercase animate-pulse">
+        Securing Session...
+      </span>
+    </div>
+  </div>
+);
+
+// Helper function to check if a route is whitelisted (excludes it from complete-profile redirects)
+const isWhitelisted = (pathname) => {
+  const whitelist = ["/complete-profile", "/login", "/register", "/update-password"];
+  return whitelist.includes(pathname);
+};
 
 // 1. REQUIRE AUTH (Any logged in user)
 export const RequireAuth = () => {
-  const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { data: user, isLoading: userLoading } = useCurrentUser();
+  const { data: profile, isLoading: profileLoading } = useUserProfile(user?.id);
+  const location = useLocation();
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
-  }, []);
+  if (userLoading || (user && profileLoading)) {
+    return <LoadingScreen />;
+  }
 
-  if (loading)
-    return (
-      <div className="h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="animate-spin text-brand-accent" />
-      </div>
-    );
-  return session ? <Outlet /> : <Navigate to="/login" replace />;
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Intercept if profile is missing entirely OR incomplete and route is not whitelisted
+  const hasCompletedProfile = profile?.profile_completed === true;
+  if (!hasCompletedProfile && !isWhitelisted(location.pathname)) {
+    return <Navigate to="/complete-profile" replace />;
+  }
+
+  return <Outlet />;
 };
 
 // 2. REQUIRE GUEST (Not logged in)
 export const RequireGuest = () => {
-  const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { data: user, isLoading } = useCurrentUser();
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
-  }, []);
-
-  if (loading) return null;
-  return !session ? <Outlet /> : <Navigate to="/" replace />;
+  if (isLoading) return <LoadingScreen />;
+  return !user ? <Outlet /> : <Navigate to="/" replace />;
 };
 
 // 3. REQUIRE DESIGNER (Checks Database Role)
 export const RequireDesigner = () => {
-  const [isDesigner, setIsDesigner] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { data: user, isLoading: userLoading } = useCurrentUser();
+  const { data: profile, isLoading: profileLoading } = useUserProfile(user?.id);
+  const location = useLocation();
 
-  useEffect(() => {
-    const checkRole = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setIsDesigner(false);
-        setLoading(false);
-        return;
-      }
+  if (userLoading || profileLoading) {
+    return <LoadingScreen />;
+  }
 
-      // Check the public 'users' table
-      const { data } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", user.id)
-        .single();
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
 
-      setIsDesigner(data?.role === "designer");
-      setLoading(false);
-    };
-    checkRole();
-  }, []);
+  // Intercept if profile is missing entirely OR incomplete and route is not whitelisted
+  const hasCompletedProfile = profile?.profile_completed === true;
+  if (!hasCompletedProfile && !isWhitelisted(location.pathname)) {
+    return <Navigate to="/complete-profile" replace />;
+  }
 
-  if (loading)
-    return (
-      <div className="h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="animate-spin text-brand-accent" />
-      </div>
-    );
-  return isDesigner ? <Outlet /> : <Navigate to="/" replace />;
+  return profile?.role === "designer" ? <Outlet /> : <Navigate to="/" replace />;
 };
 
 // 4. REQUIRE ADMIN (Checks Database Role)
 export const RequireAdmin = () => {
-  const [isAdmin, setIsAdmin] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { data: user, isLoading: userLoading } = useCurrentUser();
+  const { data: profile, isLoading: profileLoading } = useUserProfile(user?.id);
+  const location = useLocation();
 
-  useEffect(() => {
-    const checkRole = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setIsAdmin(false);
-        setLoading(false);
-        return;
-      }
+  if (userLoading || profileLoading) {
+    return <LoadingScreen />;
+  }
 
-      // Check the public 'users' table
-      const { data } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", user.id)
-        .single();
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
 
-      setIsAdmin(data?.role === "admin");
-      setLoading(false);
-    };
-    checkRole();
-  }, []);
+  // Intercept if profile is missing entirely OR incomplete and route is not whitelisted
+  const hasCompletedProfile = profile?.profile_completed === true;
+  if (!hasCompletedProfile && !isWhitelisted(location.pathname)) {
+    return <Navigate to="/complete-profile" replace />;
+  }
 
-  if (loading)
-    return (
-      <div className="h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="animate-spin text-brand-accent" />
-      </div>
-    );
-  return isAdmin ? <Outlet /> : <Navigate to="/" replace />;
+  return profile?.role === "admin" ? <Outlet /> : <Navigate to="/" replace />;
+};
+
+// 5. GLOBAL PROFILE COMPLETION GUARD
+export const OnboardingGuard = ({ children }) => {
+  const { data: user, isLoading: userLoading } = useCurrentUser();
+  const { data: profile, isLoading: profileLoading } = useUserProfile(user?.id);
+  const location = useLocation();
+
+  if (userLoading || (user && profileLoading)) {
+    return <LoadingScreen />;
+  }
+
+  // If authenticated but profile is not completed, redirect to /complete-profile
+  const hasCompletedProfile = profile?.profile_completed === true;
+  if (user && !hasCompletedProfile && !isWhitelisted(location.pathname)) {
+    return <Navigate to="/complete-profile" replace />;
+  }
+
+  return children;
 };

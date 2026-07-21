@@ -28,6 +28,7 @@ const Collab = () => {
     websiteUrl: "", 
     designerType: "interior",
   });
+  const [customCity, setCustomCity] = useState("");
 
   useEffect(() => {
     isMounted.current = true;
@@ -42,17 +43,21 @@ const Collab = () => {
         }
         if (isMounted.current) {
           setUser(user);
-          setFormData((prev) => ({
-            ...prev,
-            phone: user.user_metadata?.phone || user.phone || "",
-          }));
         }
 
         const { data: userRole } = await supabase
           .from("users")
-          .select("role")
+          .select("role, phone")
           .eq("id", user.id)
           .maybeSingle();
+
+        if (isMounted.current) {
+          setFormData((prev) => ({
+            ...prev,
+            phone: userRole?.phone || user.user_metadata?.phone || user.phone || "",
+          }));
+        }
+
         if (userRole?.role === "admin" || userRole?.role === "designer") {
           toast.error("You are already a registered partner.");
           if (isMounted.current) navigate("/");
@@ -96,6 +101,24 @@ const Collab = () => {
       return;
     }
 
+    // ponytail: same Indian phone regex as complete-profile (BUG-007)
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phoneRegex.test(formData.phone)) {
+      toast.error("Please enter a valid 10-digit Indian phone number starting with 6-9.");
+      return;
+    }
+
+    // ponytail: same city selection logic as complete-profile (BUG-013)
+    let finalCity = formData.city;
+    if (formData.city === "Others") {
+      const trimmedCustom = customCity.trim();
+      if (!trimmedCustom) {
+        toast.error("Please specify your city.");
+        return;
+      }
+      finalCity = trimmedCustom;
+    }
+
     setSubmitting(true);
     try {
       if (!formData.orgName)
@@ -104,7 +127,7 @@ const Collab = () => {
       const { error } = await supabase.from("designer_applications").insert({
         user_id: user.id,
         org_name: formData.orgName,
-        city: formData.city,
+        city: finalCity,
         phone: formData.phone,
         email: user.email,
         // CHANGED: sending to website_url in DB
@@ -185,17 +208,40 @@ const Collab = () => {
                     name="city"
                     value={formData.city}
                     onChange={handleChange}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-gray-900 focus:border-brand-accent focus:outline-none appearance-none"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-gray-900 focus:border-brand-accent focus:outline-none appearance-none cursor-pointer"
                   >
                     <option value="Hyderabad">Hyderabad</option>
-                    <option value="Bangalore">Bangalore</option>
                     <option value="Mumbai">Mumbai</option>
+                    <option value="Bangalore">Bangalore</option>
                     <option value="Delhi">Delhi</option>
-                    <option value="Chennai">Chennai</option>
                     <option value="Kolkata">Kolkata</option>
+                    <option value="Chennai">Chennai</option>
+                    <option value="Others">Others</option>
                   </select>
                 </div>
               </div>
+
+              {formData.city === "Others" && (
+                <div className="md:col-span-2 animate-in fade-in slide-in-from-top-2">
+                  <label className="block text-sm font-medium text-gray-500 mb-2">
+                    Specify City
+                  </label>
+                  <div className="relative">
+                    <MapPin
+                      className="absolute left-3 top-4 text-brand-accent"
+                      size={18}
+                    />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Type your city..."
+                      value={customCity}
+                      onChange={(e) => setCustomCity(e.target.value)}
+                      className="w-full bg-gray-50 border border-brand-accent rounded-xl py-3 pl-10 pr-4 text-gray-900 focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-500 mb-2">

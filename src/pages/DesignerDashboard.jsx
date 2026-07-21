@@ -43,6 +43,9 @@ import {
   Globe
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { compressImage } from "../utils/imageCompression";
+import { useQueryClient } from "@tanstack/react-query";
+import { signOut } from "../services/authService";
 
 // --- HELPER TO PARSE PROJECT JSON DATA ---
 const parseProjectCategory = (catStr) => {
@@ -118,7 +121,7 @@ const AddProjectModal = ({ onClose, onAdd, designerId }) => {
         ...prev,
         [category]: [...prev[category], ...newFiles]
       }));
-      e.target.value = null;
+      e.target.value = "";
     }
   };
 
@@ -163,9 +166,10 @@ const AddProjectModal = ({ onClose, onAdd, designerId }) => {
         const files = roomUploads[category];
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
-          const fileExt = file.name.split(".").pop();
+          const compressedFile = await compressImage(file, { maxWidth: 2048, quality: 0.8 });
+          const fileExt = compressedFile.name.split(".").pop();
           const fileName = `${designerId}/${projData.id}/${category}_${Date.now()}_${i}.${fileExt}`;
-          const { error: uploadError } = await supabase.storage.from("portfolio").upload(fileName, file);
+          const { error: uploadError } = await supabase.storage.from("portfolio").upload(fileName, compressedFile);
           if (uploadError) throw uploadError;
 
           const { data } = supabase.storage.from("portfolio").getPublicUrl(fileName);
@@ -456,10 +460,11 @@ const EditProjectModal = ({ project, designerId, onClose, onUpdate }) => {
         const files = roomUploads[category];
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
-          const fileExt = file.name.split(".").pop();
+          const compressedFile = await compressImage(file, { maxWidth: 2048, quality: 0.8 });
+          const fileExt = compressedFile.name.split(".").pop();
           const fileName = `${designerId}/${project.id}/${category}_${Date.now()}_${i}.${fileExt}`;
           
-          const { error: uploadError } = await supabase.storage.from("portfolio").upload(fileName, file);
+          const { error: uploadError } = await supabase.storage.from("portfolio").upload(fileName, compressedFile);
           if (uploadError) throw uploadError;
 
           const { data } = supabase.storage.from("portfolio").getPublicUrl(fileName);
@@ -644,13 +649,17 @@ const LeadCard = ({ lead, onStatusUpdate }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const details = parseLeadMessage(lead.message);
 
+  const clientName = lead.client?.full_name || lead.client_name;
+  const clientPhone = lead.client?.phone || lead.client_phone;
+  const clientEmail = lead.client?.email || lead.client_email;
+
   return (
     <div className={`bg-white border rounded-2xl p-6 shadow-sm hover:shadow-md transition-all relative overflow-hidden ${lead.status === "accepted" ? "border-emerald-200" : "border-gray-200"}`}>
       {lead.status !== "accepted" && <div className="absolute top-0 left-0 w-full h-1 bg-brand-accent/80"></div>}
       <div className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${isExpanded ? "mb-5 border-b border-gray-100 pb-5" : ""}`}>
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <h3 className="text-xl font-bold text-gray-900">{lead.client_name}</h3>
+            <h3 className="text-xl font-bold text-gray-900">{clientName}</h3>
             <span className={`text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider border ${lead.status === "accepted" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : lead.status === "on_hold" ? "bg-yellow-50 text-yellow-700 border-yellow-200" : "bg-orange-50 text-orange-700 border-orange-200"}`}>
               {lead.status === "accepted" ? "Active Client" : lead.status === "on_hold" ? "On Hold" : "New Inquiry"}
             </span>
@@ -680,8 +689,8 @@ const LeadCard = ({ lead, onStatusUpdate }) => {
 
           {lead.status === "accepted" && (
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-white border border-gray-200 p-3 rounded-xl flex items-center gap-3"><div className="p-2 bg-green-50 rounded-lg text-green-600"><Phone size={16}/></div><div className="min-w-0"><p className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">Phone</p><a href={`tel:${lead.client_phone}`} className="text-gray-900 font-mono font-medium text-sm">{lead.client_phone}</a></div></div>
-              <div className="bg-white border border-gray-200 p-3 rounded-xl flex items-center gap-3"><div className="p-2 bg-blue-50 rounded-lg text-blue-600"><Mail size={16}/></div><div className="min-w-0"><p className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">Email</p><a href={`mailto:${lead.client_email}`} className="text-gray-900 font-mono font-medium text-sm break-all">{lead.client_email}</a></div></div>
+              <div className="bg-white border border-gray-200 p-3 rounded-xl flex items-center gap-3"><div className="p-2 bg-green-50 rounded-lg text-green-600"><Phone size={16}/></div><div className="min-w-0"><p className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">Phone</p><a href={`tel:${clientPhone}`} className="text-gray-900 font-mono font-medium text-sm">{clientPhone}</a></div></div>
+              <div className="bg-white border border-gray-200 p-3 rounded-xl flex items-center gap-3"><div className="p-2 bg-blue-50 rounded-lg text-blue-600"><Mail size={16}/></div><div className="min-w-0"><p className="text-[10px] uppercase font-bold text-gray-500 mb-0.5">Email</p><a href={`mailto:${clientEmail}`} className="text-gray-900 font-mono font-medium text-sm break-all">{clientEmail}</a></div></div>
             </div>
           )}
 
@@ -726,62 +735,53 @@ const SubscriptionStatusCard = ({ designer, onRequestRenewal }) => {
   const isExpiringSoon = daysLeft <= 30 && daysLeft >= 0;
   const isHealthy = daysLeft > 30;
 
-  const formatDate = (dateString) => {
+  const formatDateCompact = (dateString) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    return new Date(dateString).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
   };
 
   return (
     <div
-      className={`p-6 md:p-8 rounded-[2rem] border mb-6 flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm relative overflow-hidden transition-all duration-500
+      className={`px-6 py-4 rounded-2xl border mb-4 flex flex-row items-center justify-between gap-4 shadow-sm transition-all duration-300
       ${
         isHealthy
-          ? "bg-gradient-to-r from-blue-50 to-white border-blue-100"
+          ? "bg-blue-50/40 border-blue-100/60"
           : isExpiringSoon
-          ? "bg-gradient-to-r from-orange-50 to-white border-orange-100"
-          : "bg-gradient-to-r from-red-50 to-white border-red-100"
+          ? "bg-orange-50/40 border-orange-100/60"
+          : "bg-red-50/40 border-red-100/60"
       }`}
     >
-      <div className="relative z-10 text-center md:text-left flex-1">
-        <h3 className="text-xl font-bold text-gray-900 flex items-center justify-center md:justify-start gap-2 mb-2">
-          {isHealthy ? (
-            <><ShieldCheck className="text-blue-500" size={22} /> Subscription Active</>
-          ) : isExpiringSoon ? (
-            <><AlertTriangle className="text-orange-500" size={22} /> Subscription Expiring Soon</>
-          ) : (
-            <><XCircle className="text-red-500" size={22} /> Subscription Expired</>
-          )}
-        </h3>
-        
-        <div className="text-gray-600 font-medium text-sm space-y-1">
-          <p>Your platform access and portfolio visibility.</p>
-          <div className="flex flex-col md:flex-row gap-4 mt-3">
-            <div className="bg-white border px-4 py-2 rounded-xl shadow-sm inline-flex items-center gap-2">
-               <span className="text-xs uppercase font-bold text-gray-400">Started:</span>
-               <span className="font-bold text-gray-900">{formatDate(designer.subscription_start)}</span>
-            </div>
-            <div className={`bg-white border px-4 py-2 rounded-xl shadow-sm inline-flex items-center gap-2 ${isExpiringSoon ? 'border-orange-200 text-orange-700' : isExpired ? 'border-red-200 text-red-700' : 'border-blue-200 text-blue-700'}`}>
-               <span className="text-xs uppercase font-bold opacity-70">Valid Until:</span>
-               <span className="font-bold">{formatDate(designer.subscription_end)}</span>
-               <span className="text-xs ml-1 font-bold">({daysLeft > 0 ? `${daysLeft} days left` : 'Expired'})</span>
-            </div>
-          </div>
+      <div className="flex items-center gap-3">
+        {isHealthy ? (
+          <ShieldCheck className="text-blue-500 shrink-0" size={18} />
+        ) : isExpiringSoon ? (
+          <AlertTriangle className="text-orange-500 shrink-0" size={18} />
+        ) : (
+          <XCircle className="text-red-500 shrink-0" size={18} />
+        )}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+          <span className="font-bold text-gray-900 text-sm">
+            {isHealthy ? "Subscription Active" : isExpiringSoon ? "Subscription Expiring Soon" : "Subscription Expired"}
+          </span>
+          <span className="hidden sm:inline text-gray-300 text-sm">•</span>
+          <span className="text-xs text-gray-500 font-medium">
+            {formatDateCompact(designer.subscription_start)} - {formatDateCompact(designer.subscription_end)}
+            {" • "}{daysLeft > 0 ? `${daysLeft} days left` : "Expired"}
+          </span>
         </div>
       </div>
 
-      <div className="relative z-10 shrink-0">
+      <div className="shrink-0">
         {designer.renewal_requested ? (
-          <span className="px-6 py-3 bg-gray-100 text-gray-500 border border-gray-200 rounded-xl text-sm font-bold shadow-sm">
-            Renewal Requested
-          </span>
+          <span className="text-xs font-bold text-gray-400">Renewal Requested</span>
         ) : (
-          <button 
-            onClick={onRequestRenewal} 
-            className={`px-8 py-4 text-white font-bold text-sm uppercase tracking-wider rounded-xl flex items-center gap-2 transition-all shadow-xl hover:-translate-y-0.5 active:scale-95 ${
+          <button
+            onClick={onRequestRenewal}
+            className={`px-4 py-2 text-white font-bold text-xs uppercase tracking-wider rounded-lg transition-all active:scale-95 shadow-md ${
               isExpired ? "bg-red-600 hover:bg-red-700" : isExpiringSoon ? "bg-orange-500 hover:bg-orange-600" : "bg-gray-900 hover:bg-black"
             }`}
           >
-            <CalendarClock size={18} /> Request Extension
+            Request Extension
           </button>
         )}
       </div>
@@ -802,31 +802,73 @@ const FeaturedStatusCard = ({ designer, onRequestFeature }) => {
   }
   const isExpired = daysLeft < 0;
   const isCritical = daysLeft < 5;
-  const formatDate = (dateString) => {
+
+  const formatDateCompact = (dateString) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    return new Date(dateString).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
   };
+
   return (
-    <div className={`p-6 md:p-8 rounded-[2rem] border mb-8 flex flex-col md:flex-row justify-between items-center gap-6 shadow-sm relative overflow-hidden transition-all duration-500 ${isFeatured && !isCritical ? "bg-gradient-to-r from-emerald-50 to-white border-emerald-100" : isFeatured && isCritical ? "bg-gradient-to-r from-red-50 to-white border-red-100" : isRequested ? "bg-gradient-to-r from-yellow-50 to-white border-yellow-100" : "bg-white border-gray-200"}`}>
-      <div className="relative z-10 text-center md:text-left flex-1">
-        <h3 className="text-xl font-bold text-gray-900 flex items-center justify-center md:justify-start gap-2 mb-2">
-          {isFeatured && !isCritical ? <><Star className="text-emerald-500 fill-emerald-500" size={22} /> Featured Partner</> : isFeatured && isCritical ? <><AlertCircle className="text-red-500" size={22} /> {isExpired ? "Visibility Expired" : "Visibility Expiring Soon"}</> : isRequested ? <><Clock className="text-yellow-600" size={22} /> Upgrade Requested</> : <><Zap className="text-gray-400" size={22} /> Standard Profile</>}
-        </h3>
-        {isFeatured ? (
-          <div className="text-gray-600 font-medium">
-            <p>Your profile is currently prioritized.</p>
-            <div className={`mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${isCritical ? "bg-red-100 text-red-600 border border-red-200" : "bg-white border border-emerald-200 text-emerald-700"}`}>
-              <Calendar size={14} /> Valid until {formatDate(designer.featured_expiry)} <span className="opacity-70 ml-1">({daysLeft} days remaining)</span>
-            </div>
-          </div>
-        ) : isRequested ? <p className="text-gray-600 font-medium">Pending Review.</p> : <p className="text-gray-600 font-medium">Unlock premium visibility.</p>}
-      </div>
-      <div className="relative z-10 shrink-0">
-        {(isCritical || !isFeatured) && !isRequested && (
-          <button onClick={onRequestFeature} className="px-8 py-4 bg-gray-900 text-white hover:bg-brand-accent font-bold text-sm uppercase rounded-xl flex items-center gap-2 shadow-xl"><Star size={18} className="fill-white" /> {isExpired ? "Renew Visibility" : "Upgrade"}</button>
+    <div
+      className={`px-6 py-4 rounded-2xl border mb-6 flex flex-row items-center justify-between gap-4 shadow-sm transition-all duration-300
+      ${
+        isFeatured && !isCritical
+          ? "bg-emerald-50/40 border-emerald-100/60"
+          : isFeatured && isCritical
+          ? "bg-red-50/40 border-red-100/60"
+          : isRequested
+          ? "bg-yellow-50/40 border-yellow-100/60"
+          : "bg-gray-50/40 border-gray-200/60"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        {isFeatured && !isCritical ? (
+          <Star className="text-emerald-500 fill-emerald-500 shrink-0" size={18} />
+        ) : isFeatured && isCritical ? (
+          <AlertCircle className="text-red-500 shrink-0" size={18} />
+        ) : isRequested ? (
+          <Clock className="text-yellow-600 shrink-0" size={18} />
+        ) : (
+          <Zap className="text-gray-400 shrink-0" size={18} />
         )}
-        {isRequested && <span className="px-6 py-3 bg-yellow-100 text-yellow-700 border border-yellow-200 rounded-xl text-sm font-bold shadow-sm">Pending</span>}
-        {isFeatured && !isCritical && <span className="px-6 py-3 bg-white border border-emerald-200 text-emerald-600 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm"><CheckCircle size={18} /> Active</span>}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+          <span className="font-bold text-gray-900 text-sm">
+            {isFeatured && !isCritical ? "Featured Partner" : isFeatured && isCritical ? (isExpired ? "Visibility Expired" : "Visibility Expiring") : isRequested ? "Upgrade Requested" : "Standard Profile"}
+          </span>
+          {isFeatured && (
+            <>
+              <span className="hidden sm:inline text-gray-300 text-sm">•</span>
+              <span className="text-xs text-gray-500 font-medium">
+                Valid until {formatDateCompact(designer.featured_expiry)} ({daysLeft} days remaining)
+              </span>
+            </>
+          )}
+          {!isFeatured && !isRequested && (
+            <>
+              <span className="hidden sm:inline text-gray-300 text-sm">•</span>
+              <span className="text-xs text-gray-500 font-medium">Unlock premium visibility directory</span>
+            </>
+          )}
+          {isRequested && (
+            <>
+              <span className="hidden sm:inline text-gray-300 text-sm">•</span>
+              <span className="text-xs text-gray-500 font-medium">Pending review by administrators</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="shrink-0">
+        {(isCritical || !isFeatured) && !isRequested && (
+          <button
+            onClick={onRequestFeature}
+            className="px-4 py-2 bg-gray-900 text-white hover:bg-brand-accent font-bold text-xs uppercase tracking-wider rounded-lg transition-all active:scale-95 shadow-md"
+          >
+            {isExpired ? "Renew Visibility" : "Upgrade"}
+          </button>
+        )}
+        {isRequested && <span className="text-xs font-bold text-gray-400">Pending Approval</span>}
+        {isFeatured && !isCritical && <span className="text-xs font-bold text-emerald-600">Active</span>}
       </div>
     </div>
   );
@@ -912,6 +954,7 @@ const ProjectCard = ({ proj, onDelete, onEdit }) => {
 // --- MAIN DASHBOARD ---
 const DesignerDashboard = () => {
   const { id: adminDesignerId } = useParams(); 
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("leads");
   const [leadFilter, setLeadFilter] = useState("pending"); 
   const [designer, setDesigner] = useState(null);
@@ -974,7 +1017,11 @@ const DesignerDashboard = () => {
 
         if (!designerData.bio || !designerData.about_text) setIsProfileIncomplete(true);
 
-        const { data: leadsData } = await supabase.from("connections").select("*").eq("designer_id", designerData.id).order("updated_at", { ascending: false }); 
+        const { data: leadsData } = await supabase
+          .from("connections")
+          .select("*, client:users(full_name, email, phone, city)")
+          .eq("designer_id", designerData.id)
+          .order("updated_at", { ascending: false }); 
         setLeads(leadsData || []);
 
         const { data: projectsData } = await supabase.from("designer_projects").select(`*, project_images (id, image_url, is_cover, room_category)`).eq("designer_id", designerData.id).order("created_at", { ascending: false });
@@ -1083,7 +1130,16 @@ const DesignerDashboard = () => {
     }
   };
   
-  const handleLogout = async () => { await supabase.auth.signOut(); localStorage.clear(); navigate("/login"); };
+  const handleLogout = async () => { 
+    try {
+      await signOut(); 
+      queryClient.clear();
+      localStorage.clear(); 
+      navigate("/login"); 
+    } catch {
+      // fallback
+    }
+  };
 
   const renderProfileForm = () => (
     <form onSubmit={handleUpdateProfile} className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">

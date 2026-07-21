@@ -10,6 +10,7 @@ import {
   MapPin,
   ChevronDown,
   ChevronUp,
+  Loader2,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -58,8 +59,8 @@ const Connect = () => {
         </h1>
 
         {loading ? (
-          <div className="text-gray-900 text-center py-20">
-            Loading connections...
+          <div className="flex justify-center py-20">
+            <Loader2 className="animate-spin text-brand-accent" size={48} />
           </div>
         ) : connections.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center shadow-sm">

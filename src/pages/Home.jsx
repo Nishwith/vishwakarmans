@@ -20,6 +20,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
+import { useCurrentUser, useUserProfile } from "../hooks/useAuth";
 
 // --- HELPER COMPONENT FOR SCROLL ANIMATIONS ---
 const RevealOnScroll = ({ children, delay = 0 }) => {
@@ -54,29 +55,17 @@ const RevealOnScroll = ({ children, delay = 0 }) => {
 };
 
 const Home = () => {
-  const [session, setSession] = useState(null);
-  const [role, setRole] = useState("client");
-  const [loadingRole, setLoadingRole] = useState(true);
+  // ponytail: use shared TanStack hooks instead of local auth listeners (BUG-005)
+  const { data: user, isLoading: userLoading } = useCurrentUser();
+  const { data: profile, isLoading: profileLoading } = useUserProfile(user?.id);
+  const role = profile?.role || "client";
+  const loadingRole = userLoading || (user && profileLoading);
+
   const [featuredDesigners, setFeaturedDesigners] = useState([]);
   const [loadingFeatured, setLoadingFeatured] = useState(true);
 
   useEffect(() => {
     let mounted = true;
-
-    const fetchRole = async (userId) => {
-      try {
-        const { data } = await supabase
-          .from("users")
-          .select("role")
-          .eq("id", userId)
-          .maybeSingle();
-        if (mounted && data) setRole(data.role);
-      } catch (error) {
-        console.error("Role fetch error:", error);
-      } finally {
-        if (mounted) setLoadingRole(false);
-      }
-    };
 
     const fetchFeatured = async () => {
       try {
@@ -97,48 +86,12 @@ const Home = () => {
       }
     };
 
-    const initAuth = async () => {
-      const {
-        data: { session: initialSession },
-      } = await supabase.auth.getSession();
-      if (mounted) {
-        if (initialSession?.user) {
-          setSession(initialSession);
-          await fetchRole(initialSession.user.id);
-        } else {
-          setSession(null);
-          setRole("client");
-          setLoadingRole(false);
-        }
-      }
-    };
-
-    initAuth();
     fetchFeatured();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      if (mounted) {
-        if (currentSession?.user) {
-          setSession(currentSession);
-          fetchRole(currentSession.user.id);
-        } else {
-          setSession(null);
-          setRole("client");
-          setLoadingRole(false);
-        }
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    return () => { mounted = false; };
   }, []);
 
   const getDesignerBtnProps = () => {
-    if (loadingRole && session) return { link: "#", text: "Loading..." };
+    if (loadingRole && user) return { link: "#", text: "Loading..." };
     if (role === "admin") return { link: "/admin", text: "Go to Admin Panel" };
     if (role === "designer")
       return { link: "/dashboard", text: "Go to Dashboard" };
@@ -161,7 +114,7 @@ const Home = () => {
         <div className="relative z-10 max-w-5xl mx-auto space-y-10">
           <div className="flex justify-center mb-[-1rem] animate-fade-in pb-5 pt-5">
             <span className="px-4 py-1.5 rounded-full border border-gray-200 bg-white/60 backdrop-blur-md text-xs font-bold text-gray-500 tracking-[0.2em] uppercase shadow-sm">
-              Welcome to Vishvakarmans
+              Welcome to Vishwakarmans
             </span>
           </div>
           <h1 className="text-6xl md:text-8xl font-black text-gray-900 tracking-tighter font-sans animate-fade-in leading-[1.1] drop-shadow-sm">
@@ -188,7 +141,7 @@ const Home = () => {
             <Link
               to={designerBtn.link}
               className={`inline-flex items-center justify-center gap-3 bg-white border-2 border-gray-200 text-gray-900 px-8 py-4 rounded-xl text-lg font-bold hover:border-brand-accent hover:text-brand-accent transition-all shadow-md hover:shadow-xl active:scale-95 ${
-                loadingRole && session ? "opacity-50 cursor-wait" : ""
+                loadingRole && user ? "opacity-50 cursor-wait" : ""
               }`}
             >
               <Briefcase size={20} />
@@ -613,7 +566,7 @@ const Home = () => {
               <RevealOnScroll>
                 <h2 className="text-4xl md:text-5xl font-bold text-gray-900 leading-tight">
                   Why thousands trust <br />{" "}
-                  <span className="text-brand-accent">Vishvakarmans</span>
+                  <span className="text-brand-accent">Vishwakarmans</span>
                 </h2>
               </RevealOnScroll>
               <div className="space-y-8">
@@ -700,7 +653,7 @@ const Home = () => {
               <Link
                 to={designerBtn.link}
                 className={`px-10 py-5 bg-white text-brand-accent font-bold text-lg rounded-xl shadow-xl hover:bg-gray-50 transition-all hover:-translate-y-1 w-full sm:w-auto ${
-                  loadingRole && session ? "opacity-50 pointer-events-none" : ""
+                  loadingRole && user ? "opacity-50 pointer-events-none" : ""
                 }`}
               >
                 {designerBtn.text}

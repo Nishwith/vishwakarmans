@@ -193,7 +193,9 @@ const Designers = () => {
               No designers found
             </h3>
             <p className="text-gray-500 mb-6">
-              We couldn't find matches for "{searchTerm}"
+              {searchTerm.trim() === ""
+                ? "No designers found for your selected filters"
+                : `We couldn't find matches for "${searchTerm}"`}
             </p>
             <button
               onClick={clearFilters}
@@ -227,6 +229,7 @@ const Designers = () => {
                         src={designer.logo_url}
                         alt={designer.name}
                         className="w-full h-full object-cover"
+                        loading="lazy"
                       />
                     ) : (
                       designer.name.charAt(0)

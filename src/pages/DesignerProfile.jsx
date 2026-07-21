@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import toast from "react-hot-toast";
+import { useLogProjectView } from "../hooks/useLogProjectView";
 
 import {
   MapPin,
@@ -83,6 +84,7 @@ const PublicProjectCard = ({ project, onClick }) => {
           src={images[currentIndex]?.image_url || "/placeholder.jpg"} 
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
           alt={project.title} 
+          loading="lazy"
         />
         
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
@@ -233,6 +235,7 @@ const ProjectDetailModal = ({ project, onClose }) => {
               src={displayImages[currentIndex]?.image_url || "/placeholder.jpg"} 
               alt={project.title}
               className="max-w-full max-h-full object-contain rounded-xl shadow-2xl animate-in fade-in duration-500"
+              loading="lazy"
             />
             
             {displayImages[currentIndex]?.room_category && (
@@ -269,7 +272,7 @@ const ProjectDetailModal = ({ project, onClose }) => {
                     currentIndex === idx ? "border-brand-accent opacity-100" : "border-transparent opacity-40 hover:opacity-100"
                   }`}
                 >
-                  <img src={img.image_url} className="w-full h-full object-cover" alt={`thumb-${idx}`} />
+                  <img src={img.image_url} className="w-full h-full object-cover" alt={`thumb-${idx}`} loading="lazy" />
                 </button>
               ))}
             </div>
@@ -281,7 +284,7 @@ const ProjectDetailModal = ({ project, onClose }) => {
 };
 
 // --- REVIEWS SECTION COMPONENT ---
-const ReviewsSection = ({ designerId, currentUser, connectionStatus }) => {
+const ReviewsSection = ({ designerId, currentUser, connectionStatus, onReviewSubmitted }) => {
   const [reviews, setReviews] = useState([]);
   const [newReview, setReview] = useState({ rating: 5, comment: "" });
   const [submitting, setSubmitting] = useState(false);
@@ -323,6 +326,8 @@ const ReviewsSection = ({ designerId, currentUser, connectionStatus }) => {
         .eq("designer_id", designerId)
         .order("created_at", { ascending: false });
       setReviews(data || []);
+      // ponytail: refresh parent's designer.rating_avg (BUG-008)
+      if (onReviewSubmitted) onReviewSubmitted();
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -456,8 +461,12 @@ const DesignerProfile = () => {
   const [selectedProject, setSelectedProject] = useState(null);
   const [showLeadWizard, setShowLeadWizard] = useState(false);
 
+  // Log project view when detail modal opens (auth-guarded, fire-and-forget)
+  useLogProjectView(selectedProject?.id);
+
   // Unified state object
   const [connection, setConnection] = useState(null);
+  const [clientProfile, setClientProfile] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -485,6 +494,14 @@ const DesignerProfile = () => {
       setProjects(projectsData || []);
 
       if (user) {
+        // Fetch client profile details from users table
+        const { data: prof } = await supabase
+          .from("users")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle();
+        setClientProfile(prof);
+
         // Fetch the whole row, order by updated_at so if multiple exist, grab latest
         const { data: conn } = await supabase
           .from("connections")
@@ -520,9 +537,9 @@ const DesignerProfile = () => {
       client_id: currentUser.id,
       designer_id: id,
       status: "pending",
-      client_name: currentUser.user_metadata?.full_name || "Homeowner",
+      client_name: clientProfile?.full_name || currentUser.user_metadata?.full_name || "Homeowner",
       client_email: currentUser.email,
-      client_phone: currentUser.user_metadata?.phone || "Not provided",
+      client_phone: clientProfile?.phone || "Not provided",
       message: formattedMessage,
       updated_at: new Date().toISOString()
     };
@@ -606,6 +623,7 @@ const DesignerProfile = () => {
                   src={designer.logo_url}
                   alt={designer.name}
                   className="w-full h-full object-cover"
+                  loading="lazy"
                 />
               ) : (
                 designer.name.charAt(0)
@@ -821,6 +839,10 @@ const DesignerProfile = () => {
               designerId={id}
               currentUser={currentUser}
               connectionStatus={connection?.status}
+              onReviewSubmitted={async () => {
+                const { data } = await supabase.from("designers").select("*").eq("id", id).single();
+                if (data) setDesigner(data);
+              }}
             />
           </motion.div>
         </div>

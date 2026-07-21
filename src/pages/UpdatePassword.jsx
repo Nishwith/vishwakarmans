@@ -3,9 +3,12 @@ import { supabase } from "../supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { Lock, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { signOut } from "../services/authService";
 
 const UpdatePassword = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState("");
 
@@ -32,7 +35,8 @@ const UpdatePassword = () => {
       if (error) throw error;
 
       toast.success("Password updated successfully! Please login.");
-      await supabase.auth.signOut();
+      await signOut();
+      queryClient.clear();
       navigate("/login");
     } catch (error) {
       toast.error(error.message);

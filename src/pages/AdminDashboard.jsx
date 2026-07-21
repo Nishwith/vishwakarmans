@@ -40,6 +40,8 @@ import {
   ShieldCheck
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { signOut } from "../services/authService";
 
 // --- SUB-COMPONENT: REVIEW MODAL ---
 const ReviewModal = ({ designer, onClose, onApprove, onReject }) => {
@@ -894,6 +896,7 @@ const AdminOnboardDesigner = () => {
 
 // --- MAIN ADMIN DASHBOARD ---
 const AdminDashboard = () => {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
   const [data, setData] = useState({
     applications: [],
@@ -1249,9 +1252,14 @@ const AdminDashboard = () => {
   };
   
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    localStorage.clear();
-    navigate("/login");
+    try {
+      await signOut();
+      queryClient.clear();
+      localStorage.clear();
+      navigate("/login");
+    } catch {
+      // fallback
+    }
   };
 
   if (loading)

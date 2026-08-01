@@ -15,30 +15,23 @@ const LoadingScreen = () => (
   </div>
 );
 
-// Helper function to check if a route is whitelisted (excludes it from complete-profile redirects)
+// Helper function to check if a route is whitelisted
 const isWhitelisted = (pathname) => {
-  const whitelist = ["/complete-profile", "/login", "/register", "/update-password"];
+  const whitelist = ["/login", "/register", "/update-password"];
   return whitelist.includes(pathname);
 };
 
 // 1. REQUIRE AUTH (Any logged in user)
 export const RequireAuth = () => {
   const { data: user, isLoading: userLoading } = useCurrentUser();
-  const { data: profile, isLoading: profileLoading } = useUserProfile(user?.id);
   const location = useLocation();
 
-  if (userLoading || (user && profileLoading)) {
+  if (userLoading) {
     return <LoadingScreen />;
   }
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  // Intercept if profile is missing entirely OR incomplete and route is not whitelisted
-  const hasCompletedProfile = profile?.profile_completed === true;
-  if (!hasCompletedProfile && !isWhitelisted(location.pathname)) {
-    return <Navigate to="/complete-profile" replace />;
   }
 
   return <Outlet />;
@@ -66,12 +59,6 @@ export const RequireDesigner = () => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Intercept if profile is missing entirely OR incomplete and route is not whitelisted
-  const hasCompletedProfile = profile?.profile_completed === true;
-  if (!hasCompletedProfile && !isWhitelisted(location.pathname)) {
-    return <Navigate to="/complete-profile" replace />;
-  }
-
   return profile?.role === "designer" ? <Outlet /> : <Navigate to="/" replace />;
 };
 
@@ -89,30 +76,10 @@ export const RequireAdmin = () => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Intercept if profile is missing entirely OR incomplete and route is not whitelisted
-  const hasCompletedProfile = profile?.profile_completed === true;
-  if (!hasCompletedProfile && !isWhitelisted(location.pathname)) {
-    return <Navigate to="/complete-profile" replace />;
-  }
-
   return profile?.role === "admin" ? <Outlet /> : <Navigate to="/" replace />;
 };
 
 // 5. GLOBAL PROFILE COMPLETION GUARD
 export const OnboardingGuard = ({ children }) => {
-  const { data: user, isLoading: userLoading } = useCurrentUser();
-  const { data: profile, isLoading: profileLoading } = useUserProfile(user?.id);
-  const location = useLocation();
-
-  if (userLoading || (user && profileLoading)) {
-    return <LoadingScreen />;
-  }
-
-  // If authenticated but profile is not completed, redirect to /complete-profile
-  const hasCompletedProfile = profile?.profile_completed === true;
-  if (user && !hasCompletedProfile && !isWhitelisted(location.pathname)) {
-    return <Navigate to="/complete-profile" replace />;
-  }
-
   return children;
 };

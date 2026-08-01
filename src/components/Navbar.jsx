@@ -28,17 +28,12 @@ const Navbar = () => {
   const role = profile?.role || "client";
   const loading = userLoading || (user && profileLoading);
 
-  const actionLink =
-    role === "admin"
-      ? { text: "Admin Panel", path: "/admin", icon: <ShieldAlert size={18} /> }
-      : role === "designer"
-      ? { text: "Dashboard", path: "/dashboard", icon: null }
-      : { text: "Designer? Collab with us", path: "/collab", icon: null };
+
 
   return (
     <nav className="bg-white/95 backdrop-blur-lg border-b border-gray-200 fixed w-full z-[100] top-0 shadow-sm transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex items-center justify-between h-16 md:h-20">
           <Link to="/" className="flex items-center gap-3 group">
             <div className="w-10 h-10 bg-brand-accent rounded-xl flex items-center justify-center shadow-md group-hover:shadow-lg transition-all group-hover:-translate-y-0.5">
               <span className="text-white font-black text-xl">V</span>
@@ -67,16 +62,20 @@ const Navbar = () => {
             >
               Connections
             </Link>
-            <Link
-              to={actionLink.path}
-              className={`flex items-center gap-2 font-semibold transition-colors ${
-                role !== "client"
-                  ? "text-brand-accent"
-                  : "text-gray-600 hover:text-brand-accent"
-              }`}
+            <a
+              href="#"
+              className="text-gray-600 hover:text-brand-accent font-semibold transition-colors"
             >
-              {actionLink.icon} {actionLink.text}
-            </Link>
+              Apply as Designer
+            </a>
+            {role === "admin" && (
+              <Link
+                to="/admin"
+                className="flex items-center gap-2 font-semibold text-brand-accent transition-colors"
+              >
+                <ShieldAlert size={18} /> Admin Panel
+              </Link>
+            )}
             
             {loading ? (
               <div className="flex items-center justify-center pl-6 border-l border-gray-200">
@@ -154,13 +153,22 @@ const Navbar = () => {
           >
             Connections
           </Link>
-          <Link
-            to={actionLink.path}
+          <a
+            href="#"
             onClick={() => setIsOpen(false)}
-            className="block px-4 py-3 text-brand-accent font-bold hover:bg-gray-50 rounded-xl"
+            className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl"
           >
-            {actionLink.text}
-          </Link>
+            Apply as Designer
+          </a>
+          {role === "admin" && (
+            <Link
+              to="/admin"
+              onClick={() => setIsOpen(false)}
+              className="block px-4 py-3 text-brand-accent font-bold hover:bg-gray-50 rounded-xl"
+            >
+              Admin Panel
+            </Link>
+          )}
           <div className="border-t border-gray-200 pt-4 mt-2">
             {loading ? (
               <div className="flex justify-center py-2">

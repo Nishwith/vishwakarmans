@@ -83,9 +83,9 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-80px)] w-full flex flex-col md:flex-row bg-white overflow-hidden animate-fade-in">
+    <div className="h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)] w-full flex flex-col md:flex-row bg-white overflow-hidden animate-fade-in">
       {/* Left side: Premium branding */}
-      <div className="hidden md:flex md:w-1/2 bg-slate-950 relative items-center justify-center p-16">
+      <div className="hidden md:flex md:w-1/2 h-full bg-slate-950 relative items-center justify-center p-16">
         <div className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-luminosity" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80')" }}></div>
         <div className="absolute inset-0 bg-gradient-to-tr from-brand-accent/20 to-slate-950/90"></div>
         <div className="relative z-10 max-w-md text-white space-y-8">
@@ -104,54 +104,54 @@ const Register = () => {
       </div>
 
       {/* Right side: Borderless form */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-8 md:p-20 lg:p-28 bg-white">
-        <div className="w-full max-w-lg space-y-12 animate-slide-up">
-          <div className="space-y-4">
-            <h2 className="text-5xl font-bold text-gray-900 tracking-tight font-heading">Create Account</h2>
-            <p className="text-gray-500 font-sans font-light text-lg">Set up your profile in seconds</p>
+      <div className="w-full md:w-1/2 h-full overflow-y-auto flex flex-col px-6 md:px-12 xl:px-20 bg-white scrollbar-hide">
+        <div className="m-auto w-full max-w-md space-y-6 animate-slide-up">
+          <div className="space-y-2">
+            <h2 className="text-4xl font-bold text-gray-900 tracking-tight font-heading">Create Account</h2>
+            <p className="text-gray-500 font-sans font-light text-base">Set up your profile in seconds</p>
           </div>
 
           {/* Google Sign In */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             <GoogleSignInButton label="Sign up with Google" />
-            <div className="relative flex py-2 items-center">
+            <div className="relative flex py-1 items-center">
               <div className="flex-grow border-t border-gray-100"></div>
               <span className="flex-shrink mx-4 text-gray-400 text-xs font-bold uppercase tracking-wider">or continue with email</span>
               <div className="flex-grow border-t border-gray-100"></div>
             </div>
           </div>
 
-          <form onSubmit={handleRegister} className="space-y-10">
-            <div className="space-y-8">
+          <form onSubmit={handleRegister} className="space-y-5">
+            <div className="space-y-4">
               {/* Full Name */}
-              <div className="group relative border-b border-gray-100 focus-within:border-brand-accent transition-all duration-500 py-2">
+              <div className="group relative border-b border-gray-100 focus-within:border-brand-accent transition-all duration-500 py-1.5">
                 <label className="text-xs font-bold text-gray-400 tracking-widest uppercase block mb-1">Full Name</label>
                 <div className="flex items-center">
                   <User className="h-5 w-5 text-gray-300 group-focus-within:text-brand-accent transition-colors duration-500 mr-3" />
                   <input type="text" name="fullName" onChange={handleChange}
-                    className="block w-full py-2 bg-transparent text-gray-900 placeholder-gray-300 text-lg font-sans border-none outline-none focus:ring-0"
+                    className="block w-full py-1.5 bg-transparent text-gray-900 placeholder-gray-300 text-base font-sans border-none outline-none focus:ring-0"
                     placeholder="John Doe" required />
                 </div>
               </div>
 
               {/* Email */}
-              <div className="group relative border-b border-gray-100 focus-within:border-brand-accent transition-all duration-500 py-2">
+              <div className="group relative border-b border-gray-100 focus-within:border-brand-accent transition-all duration-500 py-1.5">
                 <label className="text-xs font-bold text-gray-400 tracking-widest uppercase block mb-1">Email Address</label>
                 <div className="flex items-center">
                   <Mail className="h-5 w-5 text-gray-300 group-focus-within:text-brand-accent transition-colors duration-500 mr-3" />
                   <input type="email" name="email" onChange={handleChange}
-                    className="block w-full py-2 bg-transparent text-gray-900 placeholder-gray-300 text-lg font-sans border-none outline-none focus:ring-0"
+                    className="block w-full py-1.5 bg-transparent text-gray-900 placeholder-gray-300 text-base font-sans border-none outline-none focus:ring-0"
                     placeholder="john@example.com" required />
                 </div>
               </div>
 
               {/* Password */}
-              <div className="group relative border-b border-gray-100 focus-within:border-brand-accent transition-all duration-500 py-2">
+              <div className="group relative border-b border-gray-100 focus-within:border-brand-accent transition-all duration-500 py-1.5">
                 <label className="text-xs font-bold text-gray-400 tracking-widest uppercase block mb-1">Password</label>
                 <div className="flex items-center">
                   <Lock className="h-5 w-5 text-gray-300 group-focus-within:text-brand-accent transition-colors duration-500 mr-3" />
                   <input type={showPassword ? "text" : "password"} name="password" onChange={handleChange}
-                    className="block w-full py-2 bg-transparent text-gray-900 placeholder-gray-300 text-lg font-sans border-none outline-none focus:ring-0"
+                    className="block w-full py-1.5 bg-transparent text-gray-900 placeholder-gray-300 text-base font-sans border-none outline-none focus:ring-0"
                     placeholder="••••••••" required minLength={6} />
                   <button type="button" onClick={() => setShowPassword(!showPassword)}
                     className="text-gray-400 hover:text-gray-900 transition-colors ml-2">
@@ -173,9 +173,9 @@ const Register = () => {
               </label>
             </div>
 
-            <div className="pt-4">
+            <div className="pt-2">
               <button disabled={loading || !agreed}
-                className={`group relative w-full py-5 font-bold rounded-2xl transition-all duration-500 flex items-center justify-center gap-3 cursor-pointer shadow-xl hover:-translate-y-0.5 ${
+                className={`group relative w-full py-4 font-bold rounded-2xl transition-all duration-500 flex items-center justify-center gap-3 cursor-pointer shadow-xl hover:-translate-y-0.5 ${
                   !agreed || loading
                     ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
                     : "bg-gray-900 hover:bg-brand-accent text-white shadow-slate-900/5 hover:shadow-brand-accent/25"

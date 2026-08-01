@@ -408,7 +408,13 @@ const ReviewsSection = ({ designerId, currentUser, connectionStatus, onReviewSub
       )}
       <div className="grid md:grid-cols-2 gap-4">
         {reviews.length === 0 ? (
-          <p className="text-gray-500 italic">No reviews yet.</p>
+          <div className="col-span-full border border-dashed border-gray-200 rounded-2xl p-10 text-center bg-gray-50/50">
+            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <MessageSquare className="text-gray-400" size={22} />
+            </div>
+            <h4 className="text-gray-900 font-bold mb-1">No reviews yet</h4>
+            <p className="text-gray-500 text-sm">Complete a project to request feedback from your clients!</p>
+          </div>
         ) : (
           reviews.map((rev) => (
             <div
@@ -570,18 +576,21 @@ const DesignerProfile = () => {
     }
   };
 
-  if (loading)
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 pt-32 text-center text-gray-900">
-        <Loader2 className="animate-spin mx-auto" />
+      <div className="min-h-screen bg-gray-50 pt-20 md:pt-32 text-center text-gray-900">
+        <Loader2 className="animate-spin text-brand-accent mx-auto" size={48} />
       </div>
     );
-  if (!designer)
+  }
+
+  if (!designer) {
     return (
-      <div className="min-h-screen bg-gray-50 pt-32 text-center text-gray-900">
+      <div className="min-h-screen bg-gray-50 pt-20 md:pt-32 text-center text-gray-900">
         Designer not found.
       </div>
     );
+  }
 
   const containerVariants = {
     hidden: { opacity: 0 },

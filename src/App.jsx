@@ -11,24 +11,20 @@ import DesignerProfile from "./pages/DesignerProfile";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Connect from "./pages/Connect";
-import Collab from "./pages/Collab";
 import UserProfile from "./pages/UserProfile";
 import AboutContact from "./pages/AboutContact";
 import TermsOfServices from "./pages/TermsOfServices";
 import Privacy from "./pages/Privacy";
 import UpdatePassword from "./pages/UpdatePassword";
 import NotFound from "./pages/NotFound";
-import CompleteProfile from "./pages/complete-profile";
 
 import {
   RequireAuth,
   RequireGuest,
-  RequireDesigner,
   RequireAdmin,
   OnboardingGuard,
 } from "./components/AuthRoutes";
 
-const DesignerDashboard = React.lazy(() => import("./pages/DesignerDashboard"));
 const AdminDashboard = React.lazy(() => import("./pages/AdminDashboard"));
 
 const PageLoader = () => (
@@ -53,7 +49,7 @@ function App() {
         }}
       />
       <Navbar />
-      <div className="pt-20">
+      <div className="pt-16 md:pt-20">
         <OnboardingGuard>
           <Routes>
             {/* Public */}
@@ -72,40 +68,17 @@ function App() {
 
             {/* Logged In Users */}
             <Route element={<RequireAuth />}>
-              <Route path="/complete-profile" element={<CompleteProfile />} />
               <Route path="/connect" element={<Connect />} />
               <Route path="/profile" element={<UserProfile />} />
-              <Route path="/collab" element={<Collab />} />
             </Route>
-
 
             {/* === ADMIN ONLY === */}
             <Route element={<RequireAdmin />}>
-              <Route 
-                path="/admin/manage-designer/:id" 
-                element={
-                  <Suspense fallback={<PageLoader />}>
-                    <DesignerDashboard />
-                  </Suspense>
-                } 
-              />
               <Route 
                 path="/admin" 
                 element={
                   <Suspense fallback={<PageLoader />}>
                     <AdminDashboard />
-                  </Suspense>
-                } 
-              />
-            </Route>
-
-            {/* === DESIGNERS ONLY === */}
-            <Route element={<RequireDesigner />}>
-              <Route 
-                path="/dashboard" 
-                element={
-                  <Suspense fallback={<PageLoader />}>
-                    <DesignerDashboard />
                   </Suspense>
                 } 
               />

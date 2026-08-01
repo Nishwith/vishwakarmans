@@ -104,7 +104,7 @@ const Home = () => {
     <div className="min-h-screen bg-white text-gray-900 overflow-x-hidden">
       
       {/* 1. HERO SECTION */}
-      <div className="relative h-screen flex items-center justify-center text-center px-4 overflow-hidden border-b border-gray-200">
+      <div className="relative min-h-[calc(100vh-4rem)] md:min-h-[calc(100vh-5rem)] flex flex-col items-center justify-center text-center px-4 overflow-hidden border-b border-gray-200">
         <div className="absolute inset-0 z-0 bg-white">
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
           <div className="absolute top-1/4 -left-32 w-96 h-96 bg-brand-accent/10 rounded-full blur-[120px] mix-blend-multiply"></div>
@@ -138,15 +138,17 @@ const Home = () => {
             >
               Start Exploring <ArrowRight size={20} />
             </Link>
-            <Link
-              to={designerBtn.link}
-              className={`inline-flex items-center justify-center gap-3 bg-white border-2 border-gray-200 text-gray-900 px-8 py-4 rounded-xl text-lg font-bold hover:border-brand-accent hover:text-brand-accent transition-all shadow-md hover:shadow-xl active:scale-95 ${
-                loadingRole && user ? "opacity-50 cursor-wait" : ""
-              }`}
-            >
-              <Briefcase size={20} />
-              Collab with Us
-            </Link>
+            {role !== "client" && (
+              <Link
+                to={designerBtn.link}
+                className={`inline-flex items-center justify-center gap-3 bg-white border-2 border-gray-200 text-gray-900 px-8 py-4 rounded-xl text-lg font-bold hover:border-brand-accent hover:text-brand-accent transition-all shadow-md hover:shadow-xl active:scale-95 ${
+                  loadingRole && user ? "opacity-50 cursor-wait" : ""
+                }`}
+              >
+                <Briefcase size={20} />
+                {designerBtn.text}
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -211,7 +213,7 @@ const Home = () => {
           <RevealOnScroll delay={100}>
             <Link
               to="/designers?category=interior"
-              className="group relative h-[28rem] rounded-3xl overflow-hidden border border-gray-200 hover:border-brand-accent/30 transition-all cursor-pointer shadow-xl block"
+              className="group relative w-full aspect-[16/9] md:aspect-[16/9] lg:h-[24rem] rounded-3xl overflow-hidden border border-gray-200 hover:border-brand-accent/30 transition-all cursor-pointer shadow-xl block"
             >
               <img
                 loading="lazy"
@@ -232,7 +234,7 @@ const Home = () => {
           <RevealOnScroll delay={200}>
             <Link
               to="/designers?category=commercial"
-              className="group relative h-[28rem] rounded-3xl overflow-hidden border border-gray-200 hover:border-brand-accent/30 transition-all cursor-pointer shadow-xl block"
+              className="group relative w-full aspect-[16/9] md:aspect-[16/9] lg:h-[24rem] rounded-3xl overflow-hidden border border-gray-200 hover:border-brand-accent/30 transition-all cursor-pointer shadow-xl block"
             >
               <img
                 loading="lazy"
@@ -529,8 +531,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* 9. NEW SECTION: THE STUDIO APPROACH (With Image) */}
-     {/* 9. NEW SECTION: THE BOUTIQUE EXPERIENCE */}
+      {/* 9. NEW SECTION: THE BOUTIQUE EXPERIENCE */}
       <section className="py-24 bg-white border-b border-gray-100">
         <div className="container mx-auto px-4 max-w-7xl">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
@@ -650,14 +651,16 @@ const Home = () => {
               >
                 Find a Designer
               </Link>
-              <Link
-                to={designerBtn.link}
-                className={`px-10 py-5 bg-white text-brand-accent font-bold text-lg rounded-xl shadow-xl hover:bg-gray-50 transition-all hover:-translate-y-1 w-full sm:w-auto ${
-                  loadingRole && user ? "opacity-50 pointer-events-none" : ""
-                }`}
-              >
-                {designerBtn.text}
-              </Link>
+              {role !== "client" && (
+                <Link
+                  to={designerBtn.link}
+                  className={`px-10 py-5 bg-white text-brand-accent font-bold text-lg rounded-xl shadow-xl hover:bg-gray-50 transition-all hover:-translate-y-1 w-full sm:w-auto ${
+                    loadingRole && user ? "opacity-50 pointer-events-none" : ""
+                  }`}
+                >
+                  {designerBtn.text}
+                </Link>
+              )}
             </div>
           </RevealOnScroll>
         </div>

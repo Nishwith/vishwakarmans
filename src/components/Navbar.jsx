@@ -45,7 +45,7 @@ const Navbar = () => {
 
           <div className="hidden md:flex items-center space-x-8">
              <a
-              href="https://desginers-v.netlify.app"
+              href="https://designers-v.netlify.app"
               className="bg-orange-50 text-brand-accent px-4 py-1.5 rounded-full font-bold text-sm border border-orange-200 hover:bg-orange-100 transition-colors shadow-sm whitespace-nowrap"
             >
               Are you a designer? Join
@@ -155,7 +155,7 @@ const Navbar = () => {
             Connections
           </Link>
           <a
-            href="https://desginers-v.netlify.app"
+            href="https://designers-v.netlify.app"
             onClick={() => setIsOpen(false)}
             className="block px-4 py-3 bg-orange-50 text-brand-accent font-bold rounded-xl border border-orange-200 text-center text-sm"
           >

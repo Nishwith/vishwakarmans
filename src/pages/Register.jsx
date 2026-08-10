@@ -185,7 +185,7 @@ const Register = () => {
             Want to showcase your portfolio, connect with homeowners, and grow your firm? Join our exclusive network of professionals.
           </p>
           <div className="pt-4">
-            <a href="https://desginers-v.netlify.app" className="inline-block px-8 py-4 bg-white text-brand-accent font-bold rounded-xl shadow-2xl hover:shadow-orange-900/20 hover:-translate-y-1 transition-all active:scale-95">
+            <a href="https://designers-v.netlify.app" className="inline-block px-8 py-4 bg-white text-brand-accent font-bold rounded-xl shadow-2xl hover:shadow-orange-900/20 hover:-translate-y-1 transition-all active:scale-95">
               Sign up in Designers Portal
             </a>
           </div>

@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import toast from "react-hot-toast";
-import { useLogProjectView } from "../hooks/useLogProjectView";
+
 
 import {
   MapPin,
@@ -28,7 +28,8 @@ import {
   Play,
   X,
   Globe,
-  Tag
+  Tag,
+  FolderGit2
 } from "lucide-react";
 import { motion } from "framer-motion";
 import LeadWizardModal from "../components/LeadWizardModal";
@@ -61,7 +62,11 @@ const parseProjectCategory = (catStr) => {
 
 // --- SUB-COMPONENT: SIMPLE PUBLIC PROJECT CARD ---
 const PublicProjectCard = ({ project, onClick }) => {
-  const images = project.project_images || [];
+  const images = [...(project.project_images || [])].sort((a, b) => {
+    if (a.is_cover && !b.is_cover) return -1;
+    if (!a.is_cover && b.is_cover) return 1;
+    return 0;
+  });
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const nextImage = (e) => {
@@ -74,12 +79,13 @@ const PublicProjectCard = ({ project, onClick }) => {
   };
 
   return (
+    
     <div 
       className="group cursor-pointer bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-gray-300 hover:shadow-xl transition-all duration-300 flex flex-col h-full"
       onClick={() => onClick(project)}
     >
       {/* Image Slider */}
-      <div className="h-64 sm:h-72 relative bg-gray-100 overflow-hidden shrink-0">
+      <div className="h-64 sm:h-48 relative bg-gray-100 overflow-hidden shrink-0">
         <img 
           src={images[currentIndex]?.image_url || "/placeholder.jpg"} 
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
@@ -131,10 +137,27 @@ const PublicProjectCard = ({ project, onClick }) => {
 
 // --- SUB-COMPONENT: FULL SCREEN PROJECT DETAIL MODAL (z-200) ---
 const ProjectDetailModal = ({ project, onClose }) => {
-  const images = project.project_images || [];
+  const images = [...(project.project_images || [])].sort((a, b) => {
+    if (a.is_cover && !b.is_cover) return -1;
+    if (!a.is_cover && b.is_cover) return 1;
+    return 0;
+  });
   const parsedData = parseProjectCategory(project.project_category);
   const description = parsedData.description || "";
   const place = project.place || "";
+
+  let roomMaterialsObj = null;
+  if (project.room_materials) {
+    if (typeof project.room_materials === "object") {
+      roomMaterialsObj = project.room_materials;
+    } else if (typeof project.room_materials === "string") {
+      try {
+        roomMaterialsObj = JSON.parse(project.room_materials);
+      } catch {
+        roomMaterialsObj = null;
+      }
+    }
+  }
 
   // Extract available rooms
   const roomsWithImages = [...new Set(images.map(img => img.room_category).filter(Boolean))];
@@ -142,6 +165,7 @@ const ProjectDetailModal = ({ project, onClose }) => {
 
   const [activeRoom, setActiveRoom] = useState("All");
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Filter images based on selected category
   const filteredImages = activeRoom === "All" 
@@ -163,9 +187,20 @@ const ProjectDetailModal = ({ project, onClose }) => {
     setCurrentIndex(0); // Reset to first image of new category
   };
 
+  const activeRoomMaterialsRaw =
+    activeRoom !== "All" && roomMaterialsObj ? roomMaterialsObj[activeRoom] : null;
+
+  const activeRoomMaterials = Array.isArray(activeRoomMaterialsRaw)
+    ? activeRoomMaterialsRaw.join(", ")
+    : typeof activeRoomMaterialsRaw === "string"
+    ? activeRoomMaterialsRaw.trim()
+    : null;
+
+  const hasRoomMaterials = Boolean(activeRoomMaterials);
+
   return (
     <div className="fixed inset-0 z-[200] bg-gray-900/80 backdrop-blur-md flex items-center justify-center p-2 md:p-6 animate-in fade-in duration-300">
-      <div className="bg-white w-full max-w-[90rem] h-[95vh] md:h-[85vh] rounded-3xl md:rounded-[2.5rem] overflow-hidden flex flex-col md:flex-row relative shadow-2xl animate-in zoom-in-95 duration-300">
+      <div className="bg-white w-full max-w-[90rem] h-[95vh] md:h-[85vh] rounded-3xl md:rounded-[2.5rem] overflow-hidden flex flex-col-reverse md:flex-row relative shadow-2xl animate-in zoom-in-95 duration-300">
         
         {/* Close Button */}
         <button 
@@ -217,25 +252,41 @@ const ProjectDetailModal = ({ project, onClose }) => {
               </div>
             )}
 
-            {description && (
-              <div className="mt-auto pt-8 border-t border-gray-200">
-                <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">Project Details</h4>
-                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm md:text-base">
-                  {description}
-                </p>
-              </div>
-            )}
+            {/* Contextual Description vs. Materials Block */}
+            <div className="mt-auto pt-8 border-t border-gray-200">
+              {activeRoom !== "All" && hasRoomMaterials ? (
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400">
+                    Materials Used
+                  </h4>
+                  <div className="text-sm md:text-base">
+                    <span className="font-bold text-gray-900 font-serif">{activeRoom}: </span>
+                    <span className="text-gray-700 font-light leading-relaxed">{activeRoomMaterials}</span>
+                  </div>
+                </div>
+              ) : description ? (
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">
+                    Project Details
+                  </h4>
+                  <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm md:text-base">
+                    {description}
+                  </p>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 
         {/* RIGHT MAIN: Image Viewer (Theater Mode) */}
-        <div className="w-full md:w-[65%] lg:w-[70%] bg-gray-950 relative flex flex-col h-[50vh] md:h-full">
+        <div className="w-full md:w-[65%] lg:w-[70%] bg-gray-950 relative flex flex-col min-h-[55vh] h-[55vh] md:h-full">
           <div className="flex-1 relative flex items-center justify-center p-4 md:p-8 overflow-hidden">
             <img 
               src={displayImages[currentIndex]?.image_url || "/placeholder.jpg"} 
               alt={project.title}
-              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl animate-in fade-in duration-500"
+              className=" h-full object-cover cursor-pointer hover:opacity-90 transition-opacity rounded-xl shadow-2xl animate-in fade-in duration-500"
               loading="lazy"
+              onClick={() => setIsFullscreen(true)}
             />
             
             {displayImages[currentIndex]?.room_category && (
@@ -263,7 +314,7 @@ const ProjectDetailModal = ({ project, onClose }) => {
           </div>
 
           {displayImages.length > 1 && (
-            <div className="h-28 bg-gray-900 border-t border-white/10 p-4 flex items-center gap-3 overflow-x-auto no-scrollbar shrink-0">
+            <div className="h-16 lg:h-28 bg-gray-900 border-t border-white/10 p-4 flex items-center gap-3 overflow-x-auto no-scrollbar shrink-0">
               {displayImages.map((img, idx) => (
                 <button
                   key={idx}
@@ -279,6 +330,42 @@ const ProjectDetailModal = ({ project, onClose }) => {
           )}
         </div>
       </div>
+
+      {/* FULLSCREEN LIGHTBOX OVERLAY */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-[300] bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-300">
+          <button 
+            onClick={(e) => { e.stopPropagation(); setIsFullscreen(false); }} 
+            className="absolute top-6 right-6 z-50 p-3 bg-white/10 text-white hover:bg-white hover:text-gray-900 rounded-full backdrop-blur-md transition-all shadow-lg"
+          >
+            <X size={24}/>
+          </button>
+          
+          {displayImages.length > 1 && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); prevImage(); }}
+                className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 p-4 bg-white/10 text-white hover:bg-white hover:text-gray-900 rounded-full backdrop-blur-md transition-all z-50 shadow-lg"
+              >
+                <ChevronLeft size={28}/>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); nextImage(); }}
+                className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 p-4 bg-white/10 text-white hover:bg-white hover:text-gray-900 rounded-full backdrop-blur-md transition-all z-50 shadow-lg"
+              >
+                <ChevronRight size={28}/>
+              </button>
+            </>
+          )}
+
+          <img 
+            src={displayImages[currentIndex]?.image_url || "/placeholder.jpg"} 
+            alt="Fullscreen View"
+            className="max-w-full max-h-full object-contain animate-in zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 };
@@ -456,6 +543,7 @@ const ReviewsSection = ({ designerId, currentUser, connectionStatus, onReviewSub
 
 // --- MAIN PROFILE PAGE ---
 const DesignerProfile = () => {
+
   const { id } = useParams();
   const navigate = useNavigate();
   
@@ -467,8 +555,18 @@ const DesignerProfile = () => {
   const [selectedProject, setSelectedProject] = useState(null);
   const [showLeadWizard, setShowLeadWizard] = useState(false);
 
-  // Log project view when detail modal opens (auth-guarded, fire-and-forget)
-  useLogProjectView(selectedProject?.id);
+  const viewLoggedRef = useRef(null);
+
+  useEffect(() => {
+    const numericId = Number(id);
+    if (!id || isNaN(numericId) || viewLoggedRef.current === id) return;
+
+    viewLoggedRef.current = id;
+    supabase.rpc('increment_profile_view', { target_designer_id: numericId })
+      .then(({ error }) => {
+        if (error) console.error("Failed to increment profile view:", error);
+      });
+  }, [id]);
 
   // Unified state object
   const [connection, setConnection] = useState(null);
@@ -578,16 +676,29 @@ const DesignerProfile = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 pt-20 md:pt-32 text-center text-gray-900">
-        <Loader2 className="animate-spin text-brand-accent mx-auto" size={48} />
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 text-center">
+        <Loader2 className="animate-spin text-brand-accent mb-2" size={48} />
+        <p className="text-sm font-semibold text-gray-500">Loading profile...</p>
       </div>
     );
   }
 
   if (!designer) {
     return (
-      <div className="min-h-screen bg-gray-50 pt-20 md:pt-32 text-center text-gray-900">
-        Designer not found.
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 text-center">
+        <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mb-4 shadow-sm">
+          <XCircle size={32} />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Designer Not Found</h1>
+        <p className="text-gray-500 text-sm max-w-md mb-6 leading-relaxed">
+          The designer profile you are looking for does not exist or may have been removed.
+        </p>
+        <button
+          onClick={() => navigate("/designers")}
+          className="px-6 py-3 bg-gray-900 hover:bg-black text-white font-bold rounded-xl shadow-md transition-all cursor-pointer"
+        >
+          Back to Designers
+        </button>
       </div>
     );
   }
@@ -613,19 +724,19 @@ const DesignerProfile = () => {
       className="min-h-screen bg-gray-50 pt-4 pb-20 overflow-hidden"
     >
       {/* HEADER */}
-      <motion.div variants={itemVariants} className="relative bg-white border-b border-gray-100 pb-12 pt-8 px-4 shadow-sm">
+      <motion.div variants={itemVariants} className="relative bg-white border-b border-gray-100 pb-6 pt-0 px-4 shadow-sm">
         <div className="max-w-6xl mx-auto">
           <button
             onClick={() => navigate(-1)}
-            className="text-gray-500 hover:text-gray-900 flex items-center gap-2 mb-8 transition-colors group"
+            className="text-gray-500 hover:text-gray-900 flex items-center gap-2 mb-6 transition-colors group text-sm font-medium"
           >
-            <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" /> Back
+            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> Back
           </button>
-          <div className="flex flex-col md:flex-row items-start gap-8">
+          <div className="flex flex-col md:flex-row items-start gap-6">
             <motion.div 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="w-24 h-24 md:w-40 md:h-40 bg-gray-50 rounded-3xl border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center text-4xl font-bold text-brand-accent shadow-xl"
+              className="w-20 h-20 md:w-32 md:h-32 bg-gray-50 rounded-3xl border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center text-3xl font-bold text-brand-accent shadow-xl"
             >
               {designer.logo_url ? (
                 <img
@@ -641,7 +752,7 @@ const DesignerProfile = () => {
             <div className="flex-1 w-full">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-3xl md:text-5xl font-bold text-gray-900 flex items-center gap-3">
+                  <h1 className="text-2xl md:text-4xl font-bold text-gray-900 flex items-center gap-3">
                     {designer.name}
                     {designer.is_verified && (
                       <CheckCircle size={28} className="text-brand-accent" />
@@ -700,7 +811,11 @@ const DesignerProfile = () => {
                     </button>
                   ) : (
                     <button
-                      onClick={() => currentUser ? setShowLeadWizard(true) : navigate("/login")}
+                      onClick={() => {
+                        if (!currentUser) return navigate("/login");
+                        if (!clientProfile?.profile_completed || !clientProfile?.phone) return navigate("/complete-profile");
+                        setShowLeadWizard(true);
+                      }}
                       disabled={isSending}
                       className="px-8 py-3 bg-brand-accent hover:bg-orange-600 text-white font-bold rounded-xl shadow-lg transition-all flex items-center gap-2"
                     >
@@ -713,26 +828,26 @@ const DesignerProfile = () => {
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-8 mt-8 border-t border-gray-200 pt-6">
+              <div className="flex items-center gap-8 mt-4 border-t border-gray-200 pt-4">
                 <div>
                   <p className="text-xs text-gray-500 uppercase font-bold mb-1">
                     Experience
                   </p>
-                  <p className="text-xl text-gray-900 font-bold flex items-center gap-2">
-                    <Clock size={20} className="text-brand-accent" />{" "}
+                  <p className="text-lg md:text-xl text-gray-900 font-bold flex items-center gap-2">
+                    <Clock size={18} className="text-brand-accent" />{" "}
                     {designer.experience_years
                       ? `${designer.experience_years}+ Years`
                       : "Fresher"}
                   </p>
                 </div>
-                <div className="w-px h-10 bg-gray-200"></div>
+                <div className="w-px h-8 bg-gray-200"></div>
                 <div>
                   <p className="text-xs text-gray-500 uppercase font-bold mb-1">
                     Rating
                   </p>
-                  <div className="flex items-center gap-2 text-xl text-gray-900 font-bold">
+                  <div className="flex items-center gap-2 text-lg md:text-xl text-gray-900 font-bold">
                     <Star
-                      size={20}
+                      size={18}
                       className="text-yellow-500"
                       fill="currentColor"
                     />{" "}
@@ -741,35 +856,63 @@ const DesignerProfile = () => {
                       : "New"}
                   </div>
                 </div>
+                <div className="w-px h-8 bg-gray-200"></div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase font-bold mb-1">
+                    Portfolio
+                  </p>
+                  <p className="text-lg md:text-xl text-gray-900 font-bold flex items-center gap-2">
+                    <FolderGit2 size={18} className="text-brand-accent" />{" "}
+                    {designer.projects_completed} Projects
+                  </p>
+                </div>
               </div>
-              <p className="mt-6 text-xl text-gray-600 font-medium leading-relaxed italic">
-                "{designer.bio}"
-              </p>
             </div>
           </div>
         </div>
       </motion.div>
 
       {/* CONTENT GRID */}
-      <div className="max-w-6xl mx-auto px-4 mt-12 grid grid-cols-1 lg:grid-cols-3 gap-12">
+      <div className="max-w-6xl mx-auto px-4 mt-6 grid grid-cols-1 lg:grid-cols-3 gap-12">
         <div className="lg:col-span-2 space-y-12">
           <motion.div variants={itemVariants}>
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              About the Firm
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              Featured Projects
             </h2>
-            <div className="prose prose-invert max-w-none text-gray-600 leading-loose whitespace-pre-wrap text-lg">
-              {designer.about_text || "No detailed description provided yet."}
-            </div>
+            {projects.length === 0 ? (
+              <div className="bg-white border border-gray-100 rounded-3xl p-12 text-center text-gray-500 shadow-sm">
+                No projects uploaded yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {projects.map((proj) => (
+                  <PublicProjectCard
+                    key={proj.id}
+                    project={proj}
+                    onClick={setSelectedProject}
+                  />
+                ))}
+              </div>
+            )}
           </motion.div>
 
-          <motion.div variants={itemVariants}>
-            <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Layout size={24} className="text-brand-accent" /> Specialist In
-            </h2>
-            <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow">
-              {!designer.style_tags || designer.style_tags.length === 0 ? (
-                <p className="text-gray-500 italic">No specialties listed.</p>
-              ) : (
+          {designer.about_text && (
+            <motion.div variants={itemVariants}>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                About the Firm
+              </h2>
+              <div className="prose prose-invert max-w-none text-gray-600 leading-loose whitespace-pre-wrap text-lg">
+                {designer.about_text}
+              </div>
+            </motion.div>
+          )}
+
+          {designer.style_tags && designer.style_tags.length > 0 && (
+            <motion.div variants={itemVariants}>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <Layout size={24} className="text-brand-accent" /> Specialist In
+              </h2>
+              <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex flex-wrap gap-3">
                   {designer.style_tags.map((tag) => (
                     <span
@@ -781,9 +924,9 @@ const DesignerProfile = () => {
                     </span>
                   ))}
                 </div>
-              )}
-            </div>
-          </motion.div>
+              </div>
+            </motion.div>
+          )}
 
           {/* --- VIDEO SECTION --- */}
           {(designer.video_link || designer.video_link_2) && (
@@ -821,27 +964,6 @@ const DesignerProfile = () => {
               </div>
             </motion.div>
           )}
-
-          <motion.div variants={itemVariants}>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">
-              Featured Projects
-            </h2>
-            {projects.length === 0 ? (
-              <div className="bg-white border border-gray-100 rounded-3xl p-12 text-center text-gray-500 shadow-sm">
-                No projects uploaded yet.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {projects.map((proj) => (
-                  <PublicProjectCard
-                    key={proj.id}
-                    project={proj}
-                    onClick={setSelectedProject}
-                  />
-                ))}
-              </div>
-            )}
-          </motion.div>
 
           <motion.div variants={itemVariants}>
             <ReviewsSection

@@ -15,10 +15,20 @@ const LoadingScreen = () => (
   </div>
 );
 
-// Helper function to check if a route is whitelisted
-const isWhitelisted = (pathname) => {
-  const whitelist = ["/login", "/register", "/update-password"];
-  return whitelist.includes(pathname);
+// Helper function to check if a route is allowed for incomplete user profiles
+const isAllowedForIncomplete = (pathname) => {
+  const allowed = [
+    "/",
+    "/designers",
+    "/aboutcontact",
+    "/terms",
+    "/privacy",
+    "/login",
+    "/register",
+    "/update-password",
+    "/complete-profile",
+  ];
+  return allowed.includes(pathname);
 };
 
 // 1. REQUIRE AUTH (Any logged in user)
@@ -81,5 +91,26 @@ export const RequireAdmin = () => {
 
 // 5. GLOBAL PROFILE COMPLETION GUARD
 export const OnboardingGuard = ({ children }) => {
+  const { data: user, isLoading: userLoading } = useCurrentUser();
+  const { data: profile, isLoading: profileLoading } = useUserProfile(user?.id);
+  const location = useLocation();
+
+  if (userLoading || (user && profileLoading)) {
+    return <LoadingScreen />;
+  }
+
+  const isComplete = Boolean(profile?.profile_completed && profile?.phone);
+
+  if (user) {
+    if (!isComplete && !isAllowedForIncomplete(location.pathname)) {
+      return <Navigate to="/complete-profile" replace />;
+    }
+    if (isComplete && location.pathname === "/complete-profile") {
+      return <Navigate to="/" replace />;
+    }
+  } else if (location.pathname === "/complete-profile") {
+    return <Navigate to="/login" replace />;
+  }
+
   return children;
 };

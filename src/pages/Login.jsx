@@ -4,6 +4,7 @@ import { Mail, Lock, Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { signInWithPassword, sendPasswordResetEmail } from "../services/authService";
+import { supabase } from "../supabaseClient";
 import GoogleSignInButton from "../components/GoogleSignInButton";
 
 const Login = () => {
@@ -19,7 +20,6 @@ const Login = () => {
   };
 
   // --- LOGIN LOGIC ---
-  // ponytail: navigate("/") and let OnboardingGuard handle role redirect — kills the FOUC race
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -27,6 +27,27 @@ const Login = () => {
       await signInWithPassword(formData.email, formData.password);
       await queryClient.invalidateQueries({ queryKey: ['auth'] });
       await queryClient.invalidateQueries({ queryKey: ['users'] });
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: userProfile } = await supabase
+          .from('users')
+          .select('role, profile_completed')
+          .eq('id', session.user.id)
+          .single();
+
+        if (userProfile?.role === 'designer') {
+          window.location.href = "https://desginers.netlify.app";
+          return;
+        }
+
+        if (userProfile?.profile_completed === false) {
+          toast.success("Welcome back!");
+          navigate("/complete-profile");
+          return;
+        }
+      }
+
       toast.success("Welcome back!");
       navigate("/");
     } catch (error) {
@@ -56,31 +77,9 @@ const Login = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)] w-full flex flex-col md:flex-row bg-white overflow-hidden animate-fade-in">
-      {/* Left side: Premium branding */}
-      <div className="hidden md:flex md:w-1/2 h-full bg-slate-950 relative items-center justify-center p-16">
-        <div className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-luminosity" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80')" }}></div>
-        <div className="absolute inset-0 bg-gradient-to-tr from-brand-accent/20 to-slate-950/90"></div>
-        <div className="relative z-10 max-w-md text-white space-y-8">
-          <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center backdrop-blur-md">
-            <Lock className="text-brand-accent w-7 h-7" />
-          </div>
-          <div className="space-y-4">
-            <h1 className="text-5xl font-extrabold tracking-tight leading-tight font-heading">
-              {isResetMode ? "Reset your " : "Welcome "}
-              <span className="text-brand-accent">{isResetMode ? "password." : "back."}</span>
-            </h1>
-            <p className="text-gray-400 text-lg font-sans leading-relaxed font-light">
-              {isResetMode
-                ? "Enter your email and we'll send you a secure link to reset your password."
-                : "Sign in to browse verified designers, manage your connections, and transform your space."}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Right side: Borderless form */}
-      <div className="w-full md:w-1/2 h-full overflow-y-auto flex flex-col px-6 md:px-12 xl:px-20 bg-white scrollbar-hide">
+    <div className="min-h-[calc(100vh-4rem)] md:min-h-[calc(100vh-5rem)] w-full flex flex-col md:flex-row bg-white animate-fade-in">
+      {/* Left side: Form container */}
+      <div className="w-full md:w-1/2 flex flex-col justify-center px-6 py-12 md:px-12 xl:px-20 bg-white order-1">
         <div className="m-auto w-full max-w-md space-y-6 animate-slide-up">
           <div className="space-y-2">
             <h2 className="text-4xl font-bold text-gray-900 tracking-tight font-heading">
@@ -170,16 +169,27 @@ const Login = () => {
                 Don't have an account?{" "}
                 <Link to="/register" className="text-gray-900 hover:text-brand-accent font-bold transition-colors">Sign Up</Link>
               </div>
-
-              {/* Designer Callout */}
-              <div className="bg-brand-accent/5 border border-brand-accent/10 rounded-xl p-3.5 text-center">
-                <p className="text-sm text-gray-600">
-                  Are you an interior designer or architect?{" "}
-                  <Link to="/collab" className="text-brand-accent font-bold hover:underline">Apply to Collaborate</Link>
-                </p>
-              </div>
             </form>
           )}
+        </div>
+      </div>
+
+      {/* Right side: Dedicated Designer CTA */}
+      <div className="w-full md:w-1/2 relative flex flex-col items-center justify-center p-12 text-center overflow-hidden order-2 bg-slate-950 min-h-[400px]">
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-accent to-orange-700 z-0"></div>
+        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1600607686527-6fb886090705?auto=format&fit=crop&w=1200&q=80')] opacity-20 mix-blend-overlay object-cover z-0"></div>
+        <div className="relative z-10 max-w-md text-white space-y-6">
+          <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight font-heading leading-tight">
+            Are you a Designer?
+          </h2>
+          <p className="text-lg text-white/90 font-medium leading-relaxed">
+            Want to showcase your portfolio, connect with homeowners, and grow your firm? Join our exclusive network of professionals.
+          </p>
+          <div className="pt-4">
+            <a href="https://desginers.netlify.app" className="inline-block px-8 py-4 bg-white text-brand-accent font-bold rounded-xl shadow-2xl hover:shadow-orange-900/20 hover:-translate-y-1 transition-all active:scale-95">
+              Sign up in Designers Portal
+            </a>
+          </div>
         </div>
       </div>
     </div>

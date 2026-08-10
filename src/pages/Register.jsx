@@ -83,28 +83,9 @@ const Register = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)] w-full flex flex-col md:flex-row bg-white overflow-hidden animate-fade-in">
-      {/* Left side: Premium branding */}
-      <div className="hidden md:flex md:w-1/2 h-full bg-slate-950 relative items-center justify-center p-16">
-        <div className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-luminosity" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1200&q=80')" }}></div>
-        <div className="absolute inset-0 bg-gradient-to-tr from-brand-accent/20 to-slate-950/90"></div>
-        <div className="relative z-10 max-w-md text-white space-y-8">
-          <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center backdrop-blur-md">
-            <User className="text-brand-accent w-7 h-7" />
-          </div>
-          <div className="space-y-4">
-            <h1 className="text-5xl font-extrabold tracking-tight leading-tight font-heading">
-              Start your <span className="text-brand-accent">journey.</span>
-            </h1>
-            <p className="text-gray-400 text-lg font-sans leading-relaxed font-light">
-              Join thousands of homeowners connecting with verified interior and commercial designers across India.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Right side: Borderless form */}
-      <div className="w-full md:w-1/2 h-full overflow-y-auto flex flex-col px-6 md:px-12 xl:px-20 bg-white scrollbar-hide">
+    <div className="min-h-[calc(100vh-4rem)] md:min-h-[calc(100vh-5rem)] w-full flex flex-col md:flex-row bg-white animate-fade-in">
+      {/* Left side: Form container */}
+      <div className="w-full md:w-1/2 flex flex-col justify-center px-6 py-12 md:px-12 xl:px-20 bg-white order-1">
         <div className="m-auto w-full max-w-md space-y-6 animate-slide-up">
           <div className="space-y-2">
             <h2 className="text-4xl font-bold text-gray-900 tracking-tight font-heading">Create Account</h2>
@@ -189,6 +170,25 @@ const Register = () => {
               <Link to="/login" className="text-gray-900 hover:text-brand-accent font-bold transition-colors">Sign In</Link>
             </div>
           </form>
+        </div>
+      </div>
+
+      {/* Right side: Dedicated Designer CTA */}
+      <div className="w-full md:w-1/2 relative flex flex-col items-center justify-center p-12 text-center overflow-hidden order-2 bg-slate-950 min-h-[400px]">
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-accent to-orange-700 z-0"></div>
+        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1600607686527-6fb886090705?auto=format&fit=crop&w=1200&q=80')] opacity-20 mix-blend-overlay object-cover z-0"></div>
+        <div className="relative z-10 max-w-md text-white space-y-6">
+          <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight font-heading leading-tight">
+            Are you a Designer?
+          </h2>
+          <p className="text-lg text-white/90 font-medium leading-relaxed">
+            Want to showcase your portfolio, connect with homeowners, and grow your firm? Join our exclusive network of professionals.
+          </p>
+          <div className="pt-4">
+            <a href="https://desginers.netlify.app" className="inline-block px-8 py-4 bg-white text-brand-accent font-bold rounded-xl shadow-2xl hover:shadow-orange-900/20 hover:-translate-y-1 transition-all active:scale-95">
+              Sign up in Designers Portal
+            </a>
+          </div>
         </div>
       </div>
     </div>

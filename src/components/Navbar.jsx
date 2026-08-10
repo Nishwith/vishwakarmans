@@ -44,6 +44,12 @@ const Navbar = () => {
           </Link>
 
           <div className="hidden md:flex items-center space-x-8">
+             <a
+              href="https://desginers.netlify.app"
+              className="bg-orange-50 text-brand-accent px-4 py-1.5 rounded-full font-bold text-sm border border-orange-200 hover:bg-orange-100 transition-colors shadow-sm whitespace-nowrap"
+            >
+              Are you a designer? Join
+            </a>
             <Link
               to="/"
               className="text-gray-600 hover:text-brand-accent font-semibold transition-colors"
@@ -62,12 +68,7 @@ const Navbar = () => {
             >
               Connections
             </Link>
-            <a
-              href="#"
-              className="text-gray-600 hover:text-brand-accent font-semibold transition-colors"
-            >
-              Apply as Designer
-            </a>
+           
             {role === "admin" && (
               <Link
                 to="/admin"
@@ -154,11 +155,11 @@ const Navbar = () => {
             Connections
           </Link>
           <a
-            href="#"
+            href="https://desginers.netlify.app"
             onClick={() => setIsOpen(false)}
-            className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl"
+            className="block px-4 py-3 bg-orange-50 text-brand-accent font-bold rounded-xl border border-orange-200 text-center text-sm"
           >
-            Apply as Designer
+            Are you a designer? Join
           </a>
           {role === "admin" && (
             <Link
@@ -191,13 +192,14 @@ const Navbar = () => {
                 </button>
               </div>
             ) : (
-              <Link
-                to="/login"
-                onClick={() => setIsOpen(false)}
-                className="text-brand-accent block font-bold px-4 py-3 hover:bg-gray-50 rounded-xl"
-              >
-                Login / Sign Up
-              </Link>
+              <div className="flex flex-col gap-2 px-4 py-3">
+                <Link onClick={() => setIsOpen(false)} to="/login" className="w-full text-center text-gray-900 font-bold border border-gray-200 px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors">
+                  Login
+                </Link>
+                <Link onClick={() => setIsOpen(false)} to="/register" className="w-full text-center bg-brand-accent text-white px-4 py-2.5 rounded-xl font-bold hover:bg-orange-600 shadow-md transition-colors">
+                  Sign Up
+                </Link>
+              </div>
             )}
           </div>
         </div>

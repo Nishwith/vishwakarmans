@@ -37,11 +37,177 @@ import {
   Upload,
   Globe,
   CalendarClock,
-  ShieldCheck
+  ShieldCheck,
+  ExternalLink
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { signOut } from "../services/authService";
+
+// --- SUB-COMPONENT: FEATURE REQUEST EVALUATION MODAL ---
+const FeatureRequestModal = ({ designer, onClose, onApprove, onReject }) => {
+  if (!designer) return null;
+
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!designer?.id) return;
+    const fetchReviews = async () => {
+      const { data, error } = await supabase
+        .from("reviews")
+        .select("*, users!client_id(email, phone)")
+        .eq("designer_id", designer.id);
+
+      if (!error && data) setReviews(data);
+      setLoading(false);
+    };
+    fetchReviews();
+  }, [designer?.id]);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="bg-white border border-gray-200 w-full max-w-3xl rounded-3xl shadow-2xl relative animate-in fade-in zoom-in duration-200 my-auto flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="p-5 md:p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white rounded-t-3xl z-10">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-orange-100 text-orange-600 rounded-xl">
+              <Star size={22} className="fill-orange-500" />
+            </div>
+            <div>
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900">
+                Evaluate Featured Badge Request
+              </h2>
+              <p className="text-xs text-gray-500">
+                Review designer details and client feedback before approving
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full text-gray-500 hover:text-gray-900 transition-colors"
+          >
+            <CloseIcon size={22} />
+          </button>
+        </div>
+
+        {/* Content Body */}
+        <div className="p-6 md:p-8 overflow-y-auto space-y-6">
+          {/* Designer Card Summary */}
+          <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 flex flex-col sm:flex-row gap-5 items-center sm:items-start text-center sm:text-left">
+            <div className="w-20 h-20 rounded-2xl bg-white border border-gray-300 overflow-hidden shrink-0 shadow-sm">
+              {designer.logo_url ? (
+                <img
+                  src={designer.logo_url}
+                  alt={designer.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-gray-400">
+                  {designer.name?.[0]}
+                </div>
+              )}
+            </div>
+            <div className="flex-1 space-y-2">
+              <h3 className="text-xl font-bold text-gray-900">{designer.name}</h3>
+              <div className="flex flex-wrap justify-center sm:justify-start gap-3 text-xs text-gray-600">
+                <span className="flex items-center gap-1 font-medium">
+                  <MapPin size={14} className="text-gray-400" /> {designer.city || "N/A"}
+                </span>
+                <span className="flex items-center gap-1 font-medium">
+                  <Phone size={14} className="text-green-500" /> {designer.phone || "N/A"}
+                </span>
+                <span className="flex items-center gap-1 font-medium break-all">
+                  <Mail size={14} className="text-blue-500" /> {designer.email || "N/A"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Reviews Section */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+              <CheckSquare size={16} className="text-orange-500" /> Client Reviews & Verification ({reviews.length})
+            </h4>
+
+            {loading ? (
+              <div className="py-8 text-center text-gray-500 flex items-center justify-center gap-2">
+                <Loader2 className="animate-spin text-orange-500" size={20} />
+                <span>Fetching client reviews...</span>
+              </div>
+            ) : reviews.length === 0 ? (
+              <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200 border-dashed text-center text-gray-500 text-sm">
+                No client reviews submitted for this designer yet.
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                {reviews.map((rev) => (
+                  <div
+                    key={rev.id}
+                    className="bg-gray-50 border border-gray-200 p-4 rounded-xl space-y-2"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="font-bold text-gray-900 text-sm flex items-center gap-1.5">
+                          {rev.client_name}
+                          <CheckCircle size={14} className="text-green-500" />
+                        </span>
+                        <span className="text-[10px] text-gray-500">
+                          {new Date(rev.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="flex text-yellow-500">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            size={14}
+                            fill={i < rev.rating ? "currentColor" : "none"}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-gray-700 text-xs italic">"{rev.comment}"</p>
+                    
+                    {/* Joined Client Contact Details */}
+                    <div className="flex flex-wrap gap-4 pt-2 border-t border-gray-200 text-[11px] text-gray-500 font-mono">
+                      <span>Email: <strong className="text-gray-800">{rev.users?.email || "N/A"}</strong></span>
+                      <span>Phone: <strong className="text-gray-800">{rev.users?.phone || "N/A"}</strong></span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Action Buttons Footer */}
+        <div className="p-5 border-t border-gray-200 bg-gray-50/50 rounded-b-3xl flex flex-col sm:flex-row items-center justify-between gap-4">
+          <button
+            onClick={() => onReject(designer.id)}
+            className="w-full sm:w-auto px-5 py-2.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+          >
+            Reject Request
+          </button>
+
+          <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mr-1 hidden md:inline">
+              Approve:
+            </span>
+            {[30, 90, 180, 365].map((days) => (
+              <button
+                key={days}
+                onClick={() => onApprove(designer.id, days)}
+                className="px-3.5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+              >
+                {days} Days
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // --- SUB-COMPONENT: REVIEW MODAL ---
 const ReviewModal = ({ designer, onClose, onApprove, onReject }) => {
@@ -238,39 +404,34 @@ const ReviewModal = ({ designer, onClose, onApprove, onReject }) => {
 const ActiveDesignerCard = ({
   d,
   navigate,
-  toggleFeature,
   handleDeleteDesigner,
-  handleRenewSubscription,
 }) => {
   const [showContact, setShowContact] = useState(false);
-  const [showBoostMenu, setShowBoostMenu] = useState(false);
 
+  // --- FEATURED BOOST STATUS ---
   let featDaysLeft = null;
-  let isFeatCritical = false;
-
+  let isFeatured = false;
   if (d.featured_status === "featured" && d.featured_expiry) {
     const diff = new Date(d.featured_expiry) - new Date();
     featDaysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    if (featDaysLeft < 5) isFeatCritical = true;
+    if (featDaysLeft >= 0) isFeatured = true;
   }
 
-  const isFeatured = d.featured_status === "featured";
-
-  // --- SUBSCRIPTION LOGIC ---
-  let subDaysLeft = 0;
+  // --- SUBSCRIPTION STATUS ---
+  let subDaysLeft = -1;
   if (d.subscription_end) {
     subDaysLeft = Math.ceil((new Date(d.subscription_end) - new Date()) / (1000 * 60 * 60 * 24));
   }
   const isSubExpired = subDaysLeft < 0 || !d.subscription_end;
+  const isSubExpiringSoon = !isSubExpired && subDaysLeft < 7;
 
   return (
     <div
-      className={`bg-white p-5 rounded-2xl border flex flex-col gap-4 opacity-90 hover:opacity-100 transition-all shadow-md hover:shadow-xl cursor-pointer ${
-        isSubExpired ? "border-red-300 bg-red-50/10" : 
-        isFeatured
-          ? isFeatCritical
-            ? "border-orange-500/50 shadow-orange-900/10"
-            : "border-green-500/50 shadow-green-900/10"
+      className={`bg-white p-5 rounded-2xl border flex flex-col gap-4 transition-all shadow-md hover:shadow-xl cursor-pointer ${
+        isSubExpired
+          ? "border-red-200 bg-red-50/10"
+          : isSubExpiringSoon
+          ? "border-yellow-200 bg-yellow-50/10"
           : "border-gray-200"
       }`}
       onClick={() => navigate(`/designers/${d.id}`)}
@@ -281,12 +442,12 @@ const ActiveDesignerCard = ({
             {d.logo_url ? (
               <img src={d.logo_url} alt="logo" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center font-bold text-3xl text-slate-500">
+              <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-slate-500">
                 {d.name?.[0]}
               </div>
             )}
             {isFeatured && (
-              <div className={`absolute inset-0 flex items-center justify-center ${isFeatCritical ? "bg-orange-500/20" : "bg-green-500/20"}`}>
+              <div className="absolute inset-0 flex items-center justify-center bg-green-500/20">
                 <Star size={16} className="text-gray-900 fill-white" />
               </div>
             )}
@@ -294,37 +455,41 @@ const ActiveDesignerCard = ({
           <div>
             <h3 className="font-bold text-gray-900 flex items-center gap-2">
               {d.name}
-              {isFeatured ? (
-                isFeatCritical ? (
-                  <span className="text-[10px] bg-orange-500/20 text-orange-600 border border-orange-500/50 px-2 rounded-full hidden sm:inline-block font-mono">
-                    Feat Expiring: {featDaysLeft}d
-                  </span>
-                ) : (
-                  <span className="text-[10px] bg-green-500/20 text-green-600 border border-green-500/50 px-2 rounded-full hidden sm:inline-block">
-                    Featured
-                  </span>
-                )
-              ) : null}
             </h3>
             
-            <div className="flex flex-wrap gap-2 text-xs text-gray-500 mt-1 items-center">
+            <div className="flex flex-wrap gap-2 text-xs text-gray-500 mt-1.5 items-center">
               <span>{d.city}</span>
               <span>•</span>
-              <span className="text-gray-900 font-medium">{d.designer_projects?.[0]?.count || 0} Projects</span>
+              <span className="text-gray-900 font-medium">{d.projects_completed || d.designer_projects?.[0]?.count || 0} Projects</span>
               <span>•</span>
-              <span className={`px-2 py-0.5 rounded font-bold border ${isSubExpired ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
-                {isSubExpired ? 'Sub Expired' : `Sub Active (${subDaysLeft}d)`}
-              </span>
-              <span className={`px-2 py-0.5 rounded font-bold border ${d.is_public && !isSubExpired ? 'bg-green-50 text-green-600 border-green-100' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-                {d.is_public && !isSubExpired ? 'Public' : 'Private (Hidden)'}
-              </span>
-              {d.renewal_requested && (
-                <span className="text-orange-600 font-bold bg-orange-50 px-2 py-0.5 rounded border border-orange-100 animate-pulse">
-                  Renewal Req!
+              
+              {/* READ-ONLY SUBSCRIPTION STATUS BADGE */}
+              {isSubExpired ? (
+                <span className="px-2.5 py-0.5 rounded-full font-bold border bg-red-50 text-red-600 border-red-200 text-xs inline-flex items-center gap-1">
+                  <XCircle size={12} /> Expired
+                </span>
+              ) : isSubExpiringSoon ? (
+                <span className="px-2.5 py-0.5 rounded-full font-bold border bg-yellow-50 text-yellow-700 border-yellow-200 text-xs inline-flex items-center gap-1">
+                  <AlertTriangle size={12} /> Expiring Soon ({subDaysLeft}d)
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 rounded-full font-bold border bg-green-50 text-green-700 border-green-200 text-xs inline-flex items-center gap-1">
+                  <CheckCircle size={12} /> Active ({subDaysLeft}d)
                 </span>
               )}
-            </div>
 
+              {/* READ-ONLY BOOST / FEATURED STATUS BADGE */}
+              {isFeatured && (
+                <span className="px-2.5 py-0.5 rounded-full font-bold border bg-purple-50 text-purple-700 border-purple-200 text-xs inline-flex items-center gap-1">
+                  <Star size={12} /> Featured ({featDaysLeft}d left)
+                </span>
+              )}
+
+              {/* READ-ONLY PRIORITY SCORE METRIC BADGE */}
+              <span className="px-2.5 py-0.5 rounded-full font-bold border bg-gray-100 text-gray-700 border-gray-200 text-xs inline-flex items-center gap-1 font-mono">
+                <Zap size={12} className="text-brand-accent" /> Priority: {d.priority_score || 0}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -337,22 +502,10 @@ const ActiveDesignerCard = ({
               e.stopPropagation();
               navigate(`/admin/manage-designer/${d.id}`);
             }}
-            className="px-4 py-2 bg-gray-900 text-white rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-black transition-colors shadow-sm"
+            className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors shadow-sm"
           >
-            <Briefcase size={16} /> Manage
+            <ExternalLink size={16} /> Manage Workspace
           </button>
-
-          {!showBoostMenu && (
-            <button
-              onClick={(e) => { e.stopPropagation(); handleRenewSubscription(d.id); }}
-              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors border shadow-sm ${
-                isSubExpired || d.renewal_requested ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700" : "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
-              }`}
-              title="Renew 1 Year"
-            >
-              <CalendarClock size={16} /> Renew Sub
-            </button>
-          )}
 
           <button
             onClick={() => setShowContact(!showContact)}
@@ -364,58 +517,15 @@ const ActiveDesignerCard = ({
             {showContact ? <ChevronUp size={18} /> : <Phone size={18} />}
           </button>
 
-          {!showBoostMenu && !isSubExpired && (
-            <button
-              onClick={() => setShowBoostMenu(true)}
-              className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all border shadow-sm ${
-                isFeatured
-                  ? "bg-green-500/10 text-green-600 hover:bg-green-600 hover:text-white border-green-500/20"
-                  : "bg-purple-500/10 text-purple-600 hover:bg-purple-600 hover:text-white border-purple-500/20"
-              }`}
-            >
-              <ArrowUpCircle size={16} /> {isFeatured ? "Extend Feat" : "Boost"}
-            </button>
-          )}
-
-          {!showBoostMenu && (
-            <button
-              onClick={() => handleDeleteDesigner(d.id)}
-              className="w-auto text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-xl border border-red-200 hover:border-red-500 transition-colors flex items-center justify-center gap-2 shadow-sm"
-            >
-              <LogOut size={18} />
-            </button>
-          )}
+          <button
+            onClick={() => handleDeleteDesigner(d.id)}
+            className="w-auto text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-xl border border-red-200 hover:border-red-500 transition-colors flex items-center justify-center gap-2 shadow-sm"
+            title="Delete Designer"
+          >
+            <Trash2 size={18} />
+          </button>
         </div>
       </div>
-
-      {showBoostMenu && (
-        <div
-          className={`p-3 rounded-xl border animate-in fade-in slide-in-from-right-4 flex flex-col gap-2 ${
-            isFeatured ? "bg-green-500/10 border-green-500/30" : "bg-purple-500/10 border-purple-500/30"
-          }`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider mb-1 opacity-70 text-gray-900">
-            <span>{isFeatured ? "Extend Plan" : "Select Plan"}</span>
-            <button onClick={() => setShowBoostMenu(false)} className="hover:text-gray-900">
-              <CloseIcon size={14} />
-            </button>
-          </div>
-          <div className="flex gap-2">
-            {[30, 90, 365].map((days) => (
-              <button
-                key={days}
-                onClick={() => { toggleFeature(d.id, "featured", 10, days); setShowBoostMenu(false); }}
-                className={`flex-1 hover:text-white py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                  isFeatured ? "bg-white text-green-600 hover:bg-green-600" : "bg-white text-purple-600 hover:bg-purple-600"
-                }`}
-              >
-                {isFeatured ? `+${days}d` : `${days}d`}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {showContact && (
         <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 animate-in fade-in slide-in-from-top-2">
@@ -446,6 +556,7 @@ const OverviewTab = ({
   featured,
   onUpdatePriority,
   onToggleFeature,
+  onEvaluateRequest,
 }) => {
   const [priorityMap, setPriorityMap] = useState(() => {
     const initial = {};
@@ -487,29 +598,29 @@ const OverviewTab = ({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
-            label: "New Requests",
-            count: stats.requests,
-            icon: UserPlus,
-            color: "text-orange-500",
-            bg: "bg-orange-500/10",
-          },
-          {
-            label: "Pending Verification",
-            count: stats.pending,
-            icon: Briefcase,
+            label: "Total Clients",
+            count: stats.totalClients || 0,
+            icon: Users,
             color: "text-blue-500",
             bg: "bg-blue-500/10",
           },
           {
-            label: "Active Public",
-            count: stats.active,
-            icon: Users,
+            label: "Total Designers",
+            count: stats.totalDesigners || 0,
+            icon: Briefcase,
+            color: "text-orange-500",
+            bg: "bg-orange-500/10",
+          },
+          {
+            label: "Verified Designers",
+            count: stats.verifiedDesigners || 0,
+            icon: CheckCircle,
             color: "text-green-500",
             bg: "bg-green-500/10",
           },
           {
             label: "Inbox Messages",
-            count: stats.messages,
+            count: stats.messages || 0,
             icon: MessageSquare,
             color: "text-purple-500",
             bg: "bg-purple-500/10",
@@ -534,118 +645,90 @@ const OverviewTab = ({
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-8">
-        {/* REQUESTS LIST (Updated Buttons) */}
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xl h-fit">
-          <div className="p-5 border-b border-gray-200 flex flex-col gap-3 bg-white">
-            <div className="flex justify-between items-center">
-              <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                <ArrowUpCircle className="text-purple-500" size={18} /> Feature
-                Requests
+      {/* PENDING FEATURED REQUESTS SECTION */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-orange-100 text-orange-600 rounded-xl">
+              <Star size={20} className="fill-orange-500" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 text-lg">
+                Pending Featured Requests
               </h3>
-              <span className="bg-purple-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                {requested ? requested.length : 0}
-              </span>
-            </div>
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-2.5 text-gray-500"
-                size={14}
-              />
-              <input
-                type="text"
-                placeholder="Search requests..."
-                className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 pl-9 pr-3 text-sm text-gray-900 focus:border-purple-500 outline-none"
-                value={reqSearch}
-                onChange={(e) => setReqSearch(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="max-h-100 overflow-y-auto p-2 space-y-2">
-            {filteredRequested.length === 0 ? (
-              <p className="text-center text-gray-500 py-8 text-sm">
-                No new requests.
+              <p className="text-xs text-gray-500">
+                Designers requesting featured badge visibility
               </p>
-            ) : (
-              filteredRequested.map((d) => (
-                <div
-                  key={d.id}
-                  className="bg-gray-50/50 p-3 rounded-xl border border-gray-200/50 flex flex-col gap-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={d.logo_url || "https://via.placeholder.com/40"}
-                        className="w-10 h-10 rounded-lg object-cover bg-white"
-                        alt=""
-                      />
-                      <div>
-                        <p className="text-gray-900 font-bold text-sm">{d.name}</p>
-                        <div className="flex flex-col gap-0.5 mt-1">
-                          <p className="text-[10px] text-gray-500 flex items-center gap-1">
-                            <Phone size={10} /> {d.phone}
-                          </p>
-                          <p className="text-[10px] text-gray-500 flex items-center gap-1 break-all">
-                            <Mail size={10} /> {d.email}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => onToggleFeature(d.id, "featured", 10, 30)}
-                      className="flex-1 bg-blue-600/10 text-blue-400 hover:bg-blue-600 hover:text-gray-900 py-2 rounded-lg text-xs font-bold transition-colors border border-blue-500/20"
-                    >
-                      30d
-                    </button>
-                    <button
-                      onClick={() => onToggleFeature(d.id, "featured", 10, 90)}
-                      className="flex-1 bg-green-600/10 text-green-400 hover:bg-green-600 hover:text-white py-2 rounded-lg text-xs font-bold transition-colors border border-green-500/20"
-                    >
-                      90d
-                    </button>
-                    <button
-                      onClick={() => onToggleFeature(d.id, "featured", 10, 365)}
-                      className="flex-1 bg-purple-600/10 text-purple-400 hover:bg-purple-600 hover:text-gray-900 py-2 rounded-lg text-xs font-bold transition-colors border border-purple-500/20"
-                    >
-                      365d
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => onToggleFeature(d.id, "none", 0, 0)}
-                    className="w-full bg-gray-100 hover:bg-red-600 text-white py-1.5 rounded-lg text-xs font-bold transition-colors"
-                  >
-                    Reject Request
-                  </button>
-                </div>
-              ))
-            )}
+            </div>
           </div>
+          {(requested || []).length > 0 && (
+            <span className="self-start sm:self-auto bg-orange-50 text-orange-700 border border-orange-200 text-xs font-bold px-3 py-1 rounded-full">
+              {(requested || []).length} Pending
+            </span>
+          )}
         </div>
 
-        {/* LEADERBOARD TABLE */}
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xl">
-          <div className="p-5 border-b border-gray-200 flex flex-col gap-3 bg-white">
-            <div className="flex justify-between items-center">
-              <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                <Star className="text-yellow-500" size={18} /> Live Leaderboard
-              </h3>
-            </div>
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-2.5 text-gray-500"
-                size={14}
-              />
-              <input
-                type="text"
-                placeholder="Search featured..."
-                className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 pl-9 pr-3 text-sm text-gray-900 focus:border-yellow-500 outline-none"
-                value={featSearch}
-                onChange={(e) => setFeatSearch(e.target.value)}
-              />
-            </div>
+        {(filteredRequested || []).length === 0 ? (
+          <div className="bg-gray-50/50 border border-gray-200 border-dashed rounded-xl p-6 text-center text-gray-500 text-sm">
+            No pending feature requests.
           </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredRequested.map((d) => (
+              <div
+                key={d.id}
+                className="bg-gray-50/70 border border-gray-200 p-4 rounded-xl flex items-center justify-between gap-4 hover:border-gray-300 transition-all shadow-sm"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-white border border-gray-200 overflow-hidden shrink-0 shadow-inner flex items-center justify-center">
+                    {d.logo_url ? (
+                      <img src={d.logo_url} alt={d.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="font-bold text-gray-400 text-lg">{d.name?.[0]}</span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-gray-900 text-sm truncate">{d.name}</h4>
+                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                      <MapPin size={12} /> {d.city || "N/A"}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => onEvaluateRequest && onEvaluateRequest(d)}
+                  className="px-4 py-2 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-all shadow-sm shrink-0 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Star size={14} className="text-yellow-400 fill-yellow-400" /> Evaluate Request
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* LEADERBOARD TABLE */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xl">
+        <div className="p-5 border-b border-gray-200 flex flex-col gap-3 bg-white">
+          <div className="flex justify-between items-center">
+            <h3 className="font-bold text-gray-900 flex items-center gap-2">
+              <Star className="text-yellow-500" size={18} /> Live Leaderboard
+            </h3>
+          </div>
+          <div className="relative">
+            <Search
+              className="absolute left-3 top-2.5 text-gray-500"
+              size={14}
+            />
+            <input
+              type="text"
+              placeholder="Search featured..."
+              className="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 pl-9 pr-3 text-sm text-gray-900 focus:border-yellow-500 outline-none"
+              value={featSearch}
+              onChange={(e) => setFeatSearch(e.target.value)}
+            />
+          </div>
+        </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-500">
               <thead className="bg-gray-50/50 text-[10px] uppercase font-bold text-gray-500">
@@ -737,7 +820,6 @@ const OverviewTab = ({
           </div>
         </div>
       </div>
-    </div>
   );
 };
 
@@ -747,18 +829,13 @@ const AdminOnboardDesigner = () => {
   
   const [form, setForm] = useState({
     email: "", password: "vishavakarmans@designer", fullName: "", orgName: "",  
-    city: "Hyderabad", customCity: "", phone: "",
-    designer_type: "interior", experience_years: 0, bio: "", about_text: "",
+    city: "Hyderabad", phone: "",
+    designer_type: "interior", experience_years: 0, projects_completed: 0, about_text: "",
     is_verified: true, featured_status: "standard" 
   });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    let finalCity = form.city;
-    if (form.city === "Other") {
-      if (!form.customCity.trim()) return toast.error("Please enter the custom city name.");
-      finalCity = form.customCity.trim();
-    }
     setLoading(true);
 
     try {
@@ -773,9 +850,10 @@ const AdminOnboardDesigner = () => {
 
       const payload = {
         email: form.email, password: form.password, full_name: form.fullName, 
-        org_name: form.orgName, city: finalCity, phone: form.phone, 
+        org_name: form.orgName, city: form.city, phone: form.phone, 
         designer_type: form.designer_type, experience_years: parseInt(form.experience_years),
-        bio: form.bio, about_text: form.about_text, logo_url: logoUrl,
+        projects_completed: parseInt(form.projects_completed || 0),
+        about_text: form.about_text, logo_url: logoUrl,
         is_verified: form.is_verified, featured_status: form.featured_status
       };
 
@@ -783,24 +861,19 @@ const AdminOnboardDesigner = () => {
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
 
-      // --- NEW: Activate 1-Year Subscription automatically for VIP ---
-      const startDate = new Date();
-      const endDate = new Date();
-      endDate.setFullYear(startDate.getFullYear() + 1);
-
+      // --- VIP Onboarding: Enforce Pending Payment state ---
       await supabase.from("designers").update({
-        is_subscription_active: true,
-        subscription_start: startDate.toISOString(),
-        subscription_end: endDate.toISOString(),
-        is_public: true
+        is_subscription_active: false,
+        subscription_end: null,
+        is_public: false
       }).eq("email", form.email);
-      // -------------------------------------------------------------
+      // -----------------------------------------------------
 
-      toast.success("VIP Account created & Subscription Started!");
+      toast.success("VIP Account created with Pending Payment status!");
       setForm({
         email: "", password: "vishavakarmans@designer", fullName: "", orgName: "", 
-        city: "Hyderabad", customCity: "", phone: "", 
-        designer_type: "interior", experience_years: 0, bio: "", about_text: "",
+        city: "Hyderabad", phone: "", 
+        designer_type: "interior", experience_years: 0, projects_completed: 0, about_text: "",
         is_verified: true, featured_status: "standard"
       });
       setLogoFile(null);
@@ -855,21 +928,21 @@ const AdminOnboardDesigner = () => {
             <div className="relative">
               <MapPin className="absolute left-3 top-3.5 text-gray-400" size={16} />
               <select className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-gray-900 focus:border-brand-accent outline-none appearance-none cursor-pointer transition-colors" value={form.city} onChange={(e) => setForm({...form, city: e.target.value})}>
-                <option value="Hyderabad">Hyderabad</option><option value="Bangalore">Bangalore</option><option value="Mumbai">Mumbai</option><option value="Delhi">Delhi</option><option value="Chennai">Chennai</option><option value="Kolkata">Kolkata</option><option value="Other">Other</option>
+                <option value="Hyderabad">Hyderabad</option>
+                <option value="Bangalore">Bangalore</option>
+                <option value="Mumbai">Mumbai</option>
+                <option value="Delhi">Delhi</option>
+                <option value="Chennai">Chennai</option>
+                <option value="Kolkata">Kolkata</option>
               </select>
             </div>
           </div>
-          {form.city === "Other" && (
-            <div className="animate-in fade-in slide-in-from-top-2 md:col-span-2">
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Enter City Name</label>
-              <input type="text" required className="w-full bg-gray-50 border border-brand-accent rounded-xl p-3 outline-none focus:ring-1 focus:ring-brand-accent transition-colors" value={form.customCity} onChange={(e) => setForm({...form, customCity: e.target.value})} />
-            </div>
-          )}
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 pt-4 border-t border-gray-100">
+        <div className="grid md:grid-cols-3 gap-6 pt-4 border-t border-gray-100">
           <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Designer Type</label><select className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors cursor-pointer" value={form.designer_type} onChange={(e) => setForm({...form, designer_type: e.target.value})}><option value="interior">Interior</option><option value="commercial">Commercial</option><option value="both">Both</option></select></div>
-          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Experience (Years)</label><input type="number" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors" value={form.experience_years} onChange={(e) => setForm({...form, experience_years: e.target.value})} /></div>
+          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Experience (Years)</label><input type="number" min="0" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors" value={form.experience_years} onChange={(e) => setForm({...form, experience_years: e.target.value})} /></div>
+          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Projects Completed</label><input type="number" min="0" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors" value={form.projects_completed} onChange={(e) => setForm({...form, projects_completed: e.target.value})} /></div>
         </div>
 
         <div>
@@ -883,7 +956,6 @@ const AdminOnboardDesigner = () => {
           </div>
         </div>
 
-        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Short Bio</label><input type="text" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors" value={form.bio} onChange={(e) => setForm({...form, bio: e.target.value})} /></div>
         <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Detailed About Section</label><textarea rows="4" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent resize-none transition-colors" value={form.about_text} onChange={(e) => setForm({...form, about_text: e.target.value})} /></div>
 
         <button disabled={loading} type="submit" className="w-full py-4 bg-brand-accent hover:bg-orange-600 text-white rounded-xl font-bold text-lg flex justify-center items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50">
@@ -893,6 +965,19 @@ const AdminOnboardDesigner = () => {
     </div>
   );
 };
+
+// --- OPTIONS FOR CUSTOM DROPDOWNS ---
+const STATUS_OPTIONS = [
+  { label: "All Statuses", value: "All" },
+  { label: "Featured", value: "Featured" },
+  { label: "Standard", value: "Standard" },
+  { label: "Expiring Soon (7d)", value: "expiring" },
+  { label: "Expired Subs", value: "Expired Subs" },
+  { label: "Featured Expiring (7d)", value: "featured_expiring" },
+  { label: "Featured Expired", value: "featured_expired" },
+];
+
+const CITY_OPTIONS = ["All", "Hyderabad", "Bangalore", "Mumbai", "Delhi", "Chennai", "Kolkata"];
 
 // --- MAIN ADMIN DASHBOARD ---
 const AdminDashboard = () => {
@@ -905,10 +990,14 @@ const AdminDashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [reviewingDesigner, setReviewingDesigner] = useState(null);
+  const [evaluatingFeature, setEvaluatingFeature] = useState(null);
   const navigate = useNavigate();
 
   const [activeSearch, setActiveSearch] = useState("");
-  const [activeFilter, setActiveFilter] = useState("all");
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [cityFilter, setCityFilter] = useState("All");
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [isCityOpen, setIsCityOpen] = useState(false);
 
   const fetchAllData = useCallback(async () => {
     setLoading(true);
@@ -931,8 +1020,8 @@ const AdminDashboard = () => {
         return;
       }
 
-      // Fetch ALL data including Messages
-      const [appsRes, designersRes, msgsRes] = await Promise.all([
+      // Fetch ALL data including Messages and real DB counts
+      const [appsRes, designersRes, msgsRes, clientsCount, designersCount, verifiedCount] = await Promise.all([
         supabase
           .from("designer_applications")
           .select("*")
@@ -945,12 +1034,27 @@ const AdminDashboard = () => {
           .from("contact_messages")
           .select("*")
           .order("created_at", { ascending: false }),
+        supabase
+          .from("users")
+          .select("*", { count: "exact", head: true })
+          .eq("role", "client"),
+        supabase
+          .from("users")
+          .select("*", { count: "exact", head: true })
+          .eq("role", "designer"),
+        supabase
+          .from("designers")
+          .select("*", { count: "exact", head: true })
+          .eq("is_verified", true),
       ]);
 
       setData({
         applications: appsRes.data || [],
         designers: designersRes.data || [],
-        messages: msgsRes.data || [], // Populate messages
+        messages: msgsRes.data || [],
+        totalClients: clientsCount.count || 0,
+        totalDesigners: designersCount.count || 0,
+        verifiedDesigners: verifiedCount.count || 0,
       });
     } catch (error) {
       console.error(error);
@@ -966,6 +1070,9 @@ const AdminDashboard = () => {
   // Derived Lists
   const stats = useMemo(
     () => ({
+      totalClients: data.totalClients || 0,
+      totalDesigners: data.totalDesigners || 0,
+      verifiedDesigners: data.verifiedDesigners || 0,
       collab: (data.applications || []).length,
       pending: (data.designers || []).filter((d) => !d.is_verified).length,
       active: (data.designers || []).filter((d) => d.is_verified).length,
@@ -975,7 +1082,7 @@ const AdminDashboard = () => {
       liveFeatured: (data.designers || []).filter(
         (d) => d.featured_status === "featured"
       ).length,
-      messages: (data.messages || []).filter((m) => m.status === "new").length, // Count Unread
+      messages: (data.messages || []).filter((m) => m.status === "new").length,
     }),
     [data]
   );
@@ -1001,38 +1108,52 @@ const AdminDashboard = () => {
     [data.designers]
   );
 
-  // Filter Active Designers Logic
+  // Filter Active Designers Logic (Combined Search + City + Status)
   const filteredActiveDesigners = useMemo(() => {
-    return (activeProfiles || []).filter((d) => {
+    return (activeProfiles || []).filter((designer) => {
+      // 1. Search Check
       const searchLower = activeSearch.toLowerCase();
       const matchesSearch =
-        d.name.toLowerCase().includes(searchLower) ||
-        (d.email && d.email.toLowerCase().includes(searchLower)) ||
-        (d.phone && d.phone.includes(searchLower));
+        designer.name.toLowerCase().includes(searchLower) ||
+        (designer.email && designer.email.toLowerCase().includes(searchLower)) ||
+        (designer.phone && designer.phone.includes(searchLower));
       if (!matchesSearch) return false;
-      if (activeFilter === "all") return true;
-      const daysLeft = d.featured_expiry
-        ? Math.ceil(
-            (new Date(d.featured_expiry) - new Date()) / (1000 * 60 * 60 * 24)
-          )
-        : -1;
-      const isFeatured = d.featured_status === "featured";
-      
-      let subDaysLeft = 0;
-      if (d.subscription_end) {
-        subDaysLeft = Math.ceil((new Date(d.subscription_end) - new Date()) / (1000 * 60 * 60 * 24));
-      }
-      const isSubExpired = subDaysLeft < 0 || !d.subscription_end;
 
-      if (activeFilter === "featured") return isFeatured && daysLeft >= 0;
-      if (activeFilter === "expiring") return isFeatured && daysLeft >= 0 && daysLeft < 5;
-      if (activeFilter === "expired") return isFeatured && daysLeft < 0;
-      if (activeFilter === "not_featured") return !isFeatured;
-      if (activeFilter === "sub_expired") return isSubExpired;
+      // 2. City Check
+      const matchesCity = cityFilter === "All" || designer.city === cityFilter;
+      if (!matchesCity) return false;
+
+      // 3. Status Check
+      const today = new Date();
+      if (activeFilter === "all" || activeFilter === "All") return true;
+      if (activeFilter === "featured" || activeFilter === "Featured") return designer.featured_status === "featured";
+      if (activeFilter === "not_featured" || activeFilter === "Standard") return designer.featured_status !== "featured";
+
+      if (activeFilter === "expiring") {
+        if (!designer.subscription_end) return false;
+        const diffDays = Math.ceil((new Date(designer.subscription_end) - today) / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= 7;
+      }
+
+      if (activeFilter === "sub_expired" || activeFilter === "Expired Subs") {
+        if (!designer.subscription_end) return false;
+        return new Date(designer.subscription_end) < today;
+      }
+
+      if (activeFilter === "featured_expiring") {
+        if (designer.featured_status !== "featured" || !designer.featured_expiry) return false;
+        const diffDays = Math.ceil((new Date(designer.featured_expiry) - today) / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= 7;
+      }
+
+      if (activeFilter === "featured_expired") {
+        if (!designer.featured_expiry) return false;
+        return new Date(designer.featured_expiry) < today;
+      }
 
       return true;
     });
-  }, [activeProfiles, activeSearch, activeFilter]);
+  }, [activeProfiles, activeSearch, activeFilter, cityFilter]);
 
   // --- ACTIONS ---
   const handleMessageStatus = async (id, status) => {
@@ -1111,6 +1232,45 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleApproveFeatureRequest = async (id, days) => {
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + days);
+
+    const { error } = await supabase
+      .from("designers")
+      .update({
+        featured_status: "featured",
+        featured_expiry: expiry.toISOString(),
+        priority_score: 100,
+      })
+      .eq("id", id);
+
+    if (!error) {
+      toast.success(`Featured Badge approved for ${days} days!`);
+      setEvaluatingFeature(null);
+      fetchAllData();
+    } else {
+      toast.error("Failed to approve request.");
+    }
+  };
+
+  const handleRejectFeatureRequest = async (id) => {
+    const { error } = await supabase
+      .from("designers")
+      .update({
+        featured_status: "standard",
+      })
+      .eq("id", id);
+
+    if (!error) {
+      toast.success("Featured Request rejected.");
+      setEvaluatingFeature(null);
+      fetchAllData();
+    } else {
+      toast.error("Failed to reject request.");
+    }
+  };
+
   const handleRenewSubscription = async (id) => {
     if (!window.confirm("Approve a 1-year subscription for this designer?")) return;
 
@@ -1174,13 +1334,9 @@ const AdminDashboard = () => {
     }
   };
 
-  // --- NEW: Activate Subscription on Approval ---
+  // --- Update Designer Approval (Paywall Active) ---
   const handlePublishProfile = async (id) => {
-    const toastId = toast.loading("Publishing...");
-    
-    const startDate = new Date();
-    const endDate = new Date();
-    endDate.setFullYear(startDate.getFullYear() + 1);
+    const toastId = toast.loading("Approving...");
 
     setData((prev) => ({
       ...prev,
@@ -1188,10 +1344,9 @@ const AdminDashboard = () => {
         d.id === id ? { 
           ...d, 
           is_verified: true, 
-          is_subscription_active: true,
-          subscription_start: startDate.toISOString(),
-          subscription_end: endDate.toISOString(),
-          is_public: true
+          is_subscription_active: false,
+          subscription_end: null,
+          is_public: false
         } : d
       ),
     }));
@@ -1202,13 +1357,12 @@ const AdminDashboard = () => {
         .from("designers")
         .update({ 
           is_verified: true,
-          is_subscription_active: true,
-          subscription_start: startDate.toISOString(),
-          subscription_end: endDate.toISOString(),
-          is_public: true 
+          is_subscription_active: false,
+          subscription_end: null,
+          is_public: false 
         })
         .eq("id", id);
-      toast.success("Published & Sub Activated!", { id: toastId });
+      toast.success("Designer Approved (Paywall Active)!", { id: toastId });
       fetchAllData();
     } catch {
       toast.error("Failed", { id: toastId });
@@ -1436,6 +1590,7 @@ const AdminDashboard = () => {
             featured={activeFeatured}
             onUpdatePriority={updatePriority}
             onToggleFeature={toggleFeature}
+            onEvaluateRequest={setEvaluatingFeature}
           />
         )}
 
@@ -1586,60 +1741,72 @@ const AdminDashboard = () => {
 
         {activeTab === "active" && (
           <div className="space-y-6">
-            <div className="bg-white p-4 rounded-2xl border border-gray-200 flex flex-col md:flex-row gap-4 justify-between items-center sticky top-0 z-10 shadow-sm">
+            {/* ADMIN FILTERS */}
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-center relative z-20">
               <div className="relative w-full md:w-64">
                 <Search
-                  className="absolute left-3 top-2.5 text-gray-500"
+                  className="absolute left-3.5 top-3 text-gray-400"
                   size={16}
                 />
                 <input
                   type="text"
                   placeholder="Search..."
-                  className="w-full bg-gray-50 border border-gray-300 rounded-xl py-2 pl-10 pr-4 text-gray-900 focus:border-brand-accent outline-none transition-all"
+                  className="w-full bg-white border border-gray-200 hover:border-brand-accent rounded-xl py-2.5 pl-10 pr-4 text-sm text-gray-900 focus:border-brand-accent outline-none shadow-sm transition-all font-medium"
                   value={activeSearch}
                   onChange={(e) => setActiveSearch(e.target.value)}
                 />
               </div>
-              <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 no-scrollbar">
-                {[
-                  { id: "all", label: "All", icon: Users, color: "text-gray-900" },
-                  {
-                    id: "featured",
-                    label: "Featured",
-                    icon: Star,
-                    color: "text-green-600",
-                  },
-                  {
-                    id: "expiring",
-                    label: "Feat. Expiring",
-                    icon: AlertTriangle,
-                    color: "text-orange-500",
-                  },
-                  {
-                    id: "not_featured",
-                    label: "Standard",
-                    icon: Zap,
-                    color: "text-gray-600",
-                  },
-                  {
-                    id: "sub_expired",
-                    label: "Expired Subs",
-                    icon: XCircle,
-                    color: "text-red-600",
-                  },
-                ].map((f) => (
+
+              <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+                {/* Status Dropdown */}
+                <div className="relative w-full sm:w-64">
                   <button
-                    key={f.id}
-                    onClick={() => setActiveFilter(f.id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
-                      activeFilter === f.id
-                        ? "bg-gray-100 text-gray-900 border-gray-400 shadow-inner"
-                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
-                    }`}
+                    onClick={() => { setIsStatusOpen(!isStatusOpen); setIsCityOpen(false); }}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-2.5 bg-white border border-gray-200 hover:border-brand-accent rounded-xl text-sm font-bold text-gray-700 shadow-sm transition-all"
                   >
-                    <f.icon size={14} className={f.color} /> {f.label}
+                    <span>{STATUS_OPTIONS.find(opt => opt.value === activeFilter)?.label || 'All Statuses'}</span>
+                    <ChevronDown size={16} className={`text-gray-400 transition-transform duration-200 ${isStatusOpen ? 'rotate-180' : ''}`} />
                   </button>
-                ))}
+                  
+                  {isStatusOpen && (
+                    <div className="absolute top-full left-0 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in max-h-64 overflow-y-auto">
+                      {STATUS_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => { setActiveFilter(opt.value); setIsStatusOpen(false); }}
+                          className={`w-full text-left px-4 py-3 text-sm transition-colors ${activeFilter === opt.value ? 'bg-orange-50 text-brand-accent font-bold' : 'text-gray-700 hover:bg-gray-50 font-medium'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* City Dropdown */}
+                <div className="relative w-full sm:w-48">
+                  <button
+                    onClick={() => { setIsCityOpen(!isCityOpen); setIsStatusOpen(false); }}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-2.5 bg-white border border-gray-200 hover:border-brand-accent rounded-xl text-sm font-bold text-gray-700 shadow-sm transition-all"
+                  >
+                    <span>{cityFilter === 'All' ? 'All Cities' : cityFilter}</span>
+                    <ChevronDown size={16} className={`text-gray-400 transition-transform duration-200 ${isCityOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  
+                  {isCityOpen && (
+                    <div className="absolute top-full left-0 mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in max-h-64 overflow-y-auto">
+                      {CITY_OPTIONS.map((city) => (
+                        <button
+                          key={city}
+                          onClick={() => { setCityFilter(city); setIsCityOpen(false); }}
+                          className={`w-full text-left px-4 py-3 text-sm transition-colors ${cityFilter === city ? 'bg-orange-50 text-brand-accent font-bold' : 'text-gray-700 hover:bg-gray-50 font-medium'}`}
+                        >
+                          {city === 'All' ? 'All Cities' : city}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="space-y-4">
@@ -1650,6 +1817,7 @@ const AdminDashboard = () => {
                   <button
                     onClick={() => {
                       setActiveFilter("all");
+                      setCityFilter("All");
                       setActiveSearch("");
                     }}
                     className="mt-2 text-brand-accent hover:underline font-medium text-sm"
@@ -1749,6 +1917,15 @@ const AdminDashboard = () => {
           onClose={() => setReviewingDesigner(null)}
           onApprove={handlePublishProfile}
           onReject={handleDeleteDesigner}
+        />
+      )}
+
+      {evaluatingFeature && (
+        <FeatureRequestModal
+          designer={evaluatingFeature}
+          onClose={() => setEvaluatingFeature(null)}
+          onApprove={handleApproveFeatureRequest}
+          onReject={handleRejectFeatureRequest}
         />
       )}
     </div>

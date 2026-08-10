@@ -141,4 +141,31 @@ describe('Vishwakarmans Client B2C Application Integration Tests', () => {
     expect(screen.getByText(/Studio Elite/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Hyderabad/i).length).toBeGreaterThan(0);
   });
+
+  test('OnboardingGuard redirects user with incomplete profile to /complete-profile', async () => {
+    const { OnboardingGuard } = await import('../components/AuthRoutes');
+    authHooks.useCurrentUser.mockReturnValue({
+      data: { id: 'client-user-123', email: 'client@example.com' },
+      isLoading: false,
+    });
+    authHooks.useUserProfile.mockReturnValue({
+      data: { id: 'client-user-123', role: 'client', profile_completed: false, phone: null },
+      isLoading: false,
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/connect']}>
+          <OnboardingGuard>
+            <Routes>
+              <Route path="/connect" element={<div>Connect Page</div>} />
+              <Route path="/complete-profile" element={<div>Complete Profile Page</div>} />
+            </Routes>
+          </OnboardingGuard>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByText(/Complete Profile Page/i)).toBeInTheDocument();
+  });
 });

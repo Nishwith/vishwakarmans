@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import {
   Search,
@@ -11,12 +11,89 @@ import {
   Home,
   CheckCircle,
   ArrowRight,
+  ChevronDown,
+  Globe,
+  Building2,
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import SkeletonCard from "../components/SkeletonCard"; // Import Skeleton
 import { motion, AnimatePresence } from "framer-motion";
+import { useCurrentUser, useUserProfile } from "../hooks/useAuth";
+
+// --- CUSTOM CITY DROPDOWN COMPONENT WITH LOCATION ICONS ---
+const CityDropdown = ({ selectedCity, setSelectedCity, cities }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const getCityIcon = (city) => {
+    if (city === "All") return <Globe size={16} className={selectedCity === city ? "text-brand-accent" : "text-gray-400"} />;
+    return <Building2 size={16} className={selectedCity === city ? "text-brand-accent" : "text-gray-400"} />;
+  };
+
+  return (
+    <div className="w-full md:w-52 relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full bg-gray-50 border rounded-xl py-3 px-4 flex items-center justify-between text-sm font-medium text-gray-900 transition-all cursor-pointer ${
+          isOpen || selectedCity !== "All"
+            ? "border-brand-accent ring-2 ring-brand-accent/20 bg-white"
+            : "border-gray-200 hover:border-gray-300"
+        }`}
+      >
+        <div className="flex items-center gap-2.5 truncate">
+          <MapPin size={18} className={selectedCity !== "All" ? "text-brand-accent" : "text-gray-500"} />
+          <span className={selectedCity !== "All" ? "font-bold text-brand-accent" : "text-gray-700"}>
+            {selectedCity === "All" ? "All Cities" : selectedCity}
+          </span>
+        </div>
+        <ChevronDown size={16} className={`text-gray-400 transition-transform duration-200 ${isOpen ? "rotate-180 text-brand-accent" : ""}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-gray-100 rounded-2xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-200 max-h-60 overflow-y-auto">
+          {cities.map((city) => {
+            const isSelected = selectedCity === city;
+            return (
+              <button
+                key={city}
+                type="button"
+                onClick={() => {
+                  setSelectedCity(city);
+                  setIsOpen(false);
+                }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left ${
+                  isSelected
+                    ? "bg-brand-accent/10 text-brand-accent font-bold"
+                    : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                {getCityIcon(city)}
+                <span className="flex-1">{city === "All" ? "All Cities" : city}</span>
+                {isSelected && <CheckCircle size={14} className="text-brand-accent ml-auto shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const Designers = () => {
+  const { data: user } = useCurrentUser();
+  const { data: profile } = useUserProfile(user?.id);
+
   const [designers, setDesigners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchParams] = useSearchParams();
@@ -34,12 +111,19 @@ const Designers = () => {
     "Delhi",
     "Chennai",
     "Kolkata",
+    ...(profile?.city && !["Hyderabad", "Bangalore", "Mumbai", "Delhi", "Chennai", "Kolkata"].includes(profile.city) ? [profile.city] : []),
   ];
   const types = [
     { label: "All Types", value: "All" },
     { label: "Interior Designer", value: "interior" },
     { label: "Commercial Designer", value: "commercial" },
   ];
+
+  useEffect(() => {
+    if (profile?.city) {
+      setSelectedCity(profile.city);
+    }
+  }, [profile]);
 
   useEffect(() => {
     const categoryParam = searchParams.get("category");
@@ -53,24 +137,38 @@ const Designers = () => {
         .from("designers")
         .select("*")
         .eq("is_verified", true)
+        .eq("is_public", true)
+        .eq("is_subscription_active", true)
         .order("priority_score", { ascending: false })
         .order("rating_avg", { ascending: false });
 
       if (error) throw error;
 
-      // --- NEW LOGIC: Filter out Expired & Private Profiles ---
+      // --- Filter out Expired Profiles ---
       const now = new Date();
       const validDesigners = (data || []).filter((designer) => {
-        // 1. Check Visibility (Must be Public)
-        if (designer.is_public === false) return false;
-
-        // 2. Check Subscription (Must not be expired)
+        // Check Subscription Expiry
         if (designer.subscription_end) {
           const endDate = new Date(designer.subscription_end);
-          if (endDate < now) return false; // Hide if expired
+          if (endDate < now) return false;
         }
-
         return true;
+      });
+
+      // --- Sort Active Featured Designers to top ---
+      validDesigners.sort((a, b) => {
+        const isAFeatured =
+          a.featured_status === "featured" &&
+          a.featured_expiry &&
+          new Date(a.featured_expiry) > now;
+        const isBFeatured =
+          b.featured_status === "featured" &&
+          b.featured_expiry &&
+          new Date(b.featured_expiry) > now;
+
+        if (isAFeatured && !isBFeatured) return -1;
+        if (!isAFeatured && isBFeatured) return 1;
+        return 0;
       });
 
       setDesigners(validDesigners);
@@ -89,7 +187,7 @@ const Designers = () => {
           tag.toLowerCase().includes(searchTerm.toLowerCase())
         ));
     const matchesCity =
-      selectedCity === "All" || designer.city === selectedCity;
+      selectedCity === "All" || selectedCity === "Other" || designer.city === selectedCity;
     const matchesType =
       selectedType === "All" ||
       designer.designer_type === selectedType ||
@@ -120,24 +218,12 @@ const Designers = () => {
       {/* FILTER BAR */}
       <div className="max-w-7xl mx-auto border border-gray-200 rounded-2xl p-4 md:p-6 mb-12 shadow-2xl sticky top-24 z-30 backdrop-blur-xl bg-white/90">
         <div className="flex flex-col md:flex-row gap-4">
-          {/* City Filter */}
-          <div className="w-full md:w-48 relative">
-            <MapPin
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"
-              size={18}
-            />
-            <select
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-10 pr-8 text-gray-900 focus:outline-none focus:border-brand-accent appearance-none cursor-pointer"
-              value={selectedCity}
-              onChange={(e) => setSelectedCity(e.target.value)}
-            >
-              {cities.map((city) => (
-                <option key={city} value={city}>
-                  {city}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Custom City Filter Dropdown */}
+          <CityDropdown
+            selectedCity={selectedCity}
+            setSelectedCity={setSelectedCity}
+            cities={cities}
+          />
 
           {/* Type Filter */}
           <div className="w-full md:w-56 relative">
@@ -186,23 +272,42 @@ const Designers = () => {
         ) : filteredDesigners.length === 0 ? (
           /* IMPROVED EMPTY STATE */
           <div className="col-span-full py-20 text-center flex flex-col items-center">
-            <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-4">
+            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
               <Search size={32} className="text-gray-500" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
-              No designers found
-            </h3>
-            <p className="text-gray-500 mb-6">
-              {searchTerm.trim() === ""
-                ? "No designers found for your selected filters"
-                : `We couldn't find matches for "${searchTerm}"`}
-            </p>
-            <button
-              onClick={clearFilters}
-              className="px-6 py-2 bg-brand-accent text-white rounded-lg font-bold hover:bg-orange-600 transition-colors"
-            >
-              Clear Filters
-            </button>
+            {selectedCity !== "All" && selectedCity !== "Other" ? (
+              <>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  We don't have designers in that city yet.
+                </h3>
+                <p className="text-gray-500 mb-6">
+                  Check out available designers across all cities.
+                </p>
+                <button
+                  onClick={() => setSelectedCity("All")}
+                  className="px-6 py-2.5 bg-brand-accent text-white rounded-xl font-bold hover:bg-orange-600 transition-colors shadow-md cursor-pointer"
+                >
+                  View in All
+                </button>
+              </>
+            ) : (
+              <>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  No designers found
+                </h3>
+                <p className="text-gray-500 mb-6">
+                  {searchTerm.trim() === ""
+                    ? "No designers found for your selected filters"
+                    : `We couldn't find matches for "${searchTerm}"`}
+                </p>
+                <button
+                  onClick={clearFilters}
+                  className="px-6 py-2.5 bg-brand-accent text-white rounded-xl font-bold hover:bg-orange-600 transition-colors shadow-md cursor-pointer"
+                >
+                  Clear Filters
+                </button>
+              </>
+            )}
           </div>
         ) : (
           /* DESIGNER CARDS */
@@ -318,8 +423,8 @@ const Designers = () => {
                         </span>
                       ))}
                   </div>
-                  <p className="text-sm text-gray-500 line-clamp-2">
-                    {designer.bio}
+                  <p className="text-sm font-medium text-gray-700">
+                    Projects Completed: <span className="font-bold text-gray-900">{designer.projects_completed || 0}</span>
                   </p>
                 </div>
 

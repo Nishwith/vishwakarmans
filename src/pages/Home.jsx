@@ -17,7 +17,8 @@ import {
   Ruler,
   Lightbulb,
   Layout,
-  Sparkles
+  Sparkles,
+  Building2
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { useCurrentUser, useUserProfile } from "../hooks/useAuth";
@@ -104,34 +105,34 @@ const Home = () => {
     <div className="min-h-screen bg-white text-gray-900 overflow-x-hidden">
       
       {/* 1. HERO SECTION */}
-      <div className="relative min-h-[calc(100vh-4rem)] md:min-h-[calc(100vh-5rem)] flex flex-col items-center justify-center text-center px-4 overflow-hidden border-b border-gray-200">
+      <div className="relative min-h-[calc(100vh-4rem)] lg:min-h-[75vh] xl:min-h-[88vh] py-12 lg:py-16 flex flex-col items-center justify-center text-center px-4 overflow-hidden border-b border-gray-200">
         <div className="absolute inset-0 z-0 bg-white">
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:32px_32px]"></div>
           <div className="absolute top-1/4 -left-32 w-96 h-96 bg-brand-accent/10 rounded-full blur-[120px] mix-blend-multiply"></div>
           <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-brand-accent/10 rounded-full blur-[120px] mix-blend-multiply"></div>
         </div>
 
-        <div className="relative z-10 max-w-5xl mx-auto space-y-10">
-          <div className="flex justify-center mb-[-1rem] animate-fade-in pb-5 pt-5">
-            <span className="px-4 py-1.5 rounded-full border border-gray-200 bg-white/60 backdrop-blur-md text-xs font-bold text-gray-500 tracking-[0.2em] uppercase shadow-sm">
+        <div className="relative z-10 max-w-5xl mx-auto space-y-6 md:space-y-8">
+          <div className="flex justify-center mb-2 animate-fade-in">
+            <span className="px-4 py-1.5 rounded-full border border-gray-200 bg-white/80 backdrop-blur-md text-sm font-bold text-gray-600 tracking-[0.15em] uppercase shadow-sm">
               Welcome to Vishwakarmans
             </span>
           </div>
-          <h1 className="text-6xl md:text-8xl font-black text-gray-900 tracking-tighter font-sans animate-fade-in leading-[1.1] drop-shadow-sm">
-            Dream. <br className="md:hidden" />
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black text-gray-900 tracking-tight whitespace-nowrap animate-fade-in leading-tight drop-shadow-sm">
+            Dream.{" "}
             <span className="text-brand-accent relative inline-block">
               Discover.
-              <div className="absolute -bottom-3 left-0 w-full h-4 bg-brand-accent/20 -z-10 -rotate-2 skew-x-12"></div>
+              <div className="absolute -bottom-2 left-0 w-full h-3 md:h-4 bg-brand-accent/20 -z-10 -rotate-2 skew-x-12"></div>
             </span>{" "}
             Design.
           </h1>
           
-          <p className="text-xl md:text-2xl text-gray-600 font-medium max-w-2xl mx-auto animate-fade-in delay-200 leading-relaxed">
+          <p className="text-lg md:text-xl text-gray-600 font-medium max-w-2xl mx-auto animate-fade-in delay-200 leading-relaxed">
             Connect with talented Interior and Commercial designers.
             Browse stunning portfolios, compare unique styles, and transform your vision into reality.
           </p>
           
-          <div className="pt-6 flex flex-col sm:flex-row gap-5 justify-center animate-fade-in delay-300">
+          <div className="pt-4 flex flex-col sm:flex-row gap-4 justify-center animate-fade-in delay-300">
             <Link
               to="/designers"
               className="inline-flex items-center justify-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-xl text-lg font-bold hover:bg-brand-accent hover:text-white transition-all shadow-xl hover:shadow-orange-500/20 active:scale-95"
@@ -154,16 +155,16 @@ const Home = () => {
       </div>
 
       {/* 2. HOW IT WORKS (Redesigned with Image) */}
-      <section className="py-24 bg-gray-50 border-y border-gray-200">
+      <section className="py-16 md:py-20 bg-gray-50 border-y border-gray-200">
         <div className="container mx-auto px-4 max-w-7xl">
           <RevealOnScroll>
-            <div className="text-center mb-16">
+            <div className="text-center mb-8">
               <h2 className="text-4xl font-bold text-gray-900">How it works</h2>
-              <p className="mt-4 text-gray-600 text-lg">Three simple steps to transform your space</p>
+              <p className="mt-2 text-gray-600 text-lg">Three simple steps to transform your space</p>
             </div>
           </RevealOnScroll>
 
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div className="space-y-6">
               {[
                 { icon: Search, title: "1. Browse", desc: "Search by location, style, and budget. View verified portfolios and past projects." },
@@ -185,7 +186,7 @@ const Home = () => {
             </div>
 
             <RevealOnScroll delay={300}>
-              <div className="relative h-[600px] rounded-[2.5rem] overflow-hidden shadow-2xl group">
+              <div className="relative h-[420px] lg:h-[480px] rounded-[2.5rem] overflow-hidden shadow-2xl group">
                 <img 
                   loading="lazy"
                   src="https://images.unsplash.com/photo-1600607686527-6fb886090705?auto=format&fit=crop&w=1200&q=80" 
@@ -200,9 +201,9 @@ const Home = () => {
       </section>
 
       {/* 3. SELECT YOUR CATEGORY SECTION */}
-      <div className="max-w-7xl mx-auto py-32 px-4">
+      <div className="max-w-7xl mx-auto py-16 md:py-20 px-4">
         <RevealOnScroll>
-          <div className="text-center mb-16">
+          <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-gray-900">
               Start Exploring
             </h2>
@@ -213,7 +214,7 @@ const Home = () => {
           <RevealOnScroll delay={100}>
             <Link
               to="/designers?category=interior"
-              className="group relative w-full aspect-[16/9] md:aspect-[16/9] lg:h-[24rem] rounded-3xl overflow-hidden border border-gray-200 hover:border-brand-accent/30 transition-all cursor-pointer shadow-xl block"
+              className="group relative w-full aspect-[16/9] md:aspect-[16/9] lg:h-[20rem] rounded-3xl overflow-hidden border border-gray-200 hover:border-brand-accent/30 transition-all cursor-pointer shadow-xl block"
             >
               <img
                 loading="lazy"
@@ -221,11 +222,11 @@ const Home = () => {
                 alt="Interior"
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-gray-900/90 via-gray-900/40 to-transparent flex flex-col justify-end p-12">
-                <h3 className="text-4xl font-bold text-white mb-3 group-hover:text-brand-accent transition-colors">
+              <div className="absolute inset-0 bg-gradient-to-t from-gray-900/90 via-gray-900/40 to-transparent flex flex-col justify-end p-10">
+                <h3 className="text-3xl md:text-4xl font-bold text-white mb-3 group-hover:text-brand-accent transition-colors">
                   Interior Designer
                 </h3>
-                <p className="text-gray-200 text-lg transform translate-y-4 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+                <p className="text-gray-200 text-base md:text-lg transform translate-y-4 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
                   Home interior, renovations, bedrooms, and living spaces.
                 </p>
               </div>
@@ -234,7 +235,7 @@ const Home = () => {
           <RevealOnScroll delay={200}>
             <Link
               to="/designers?category=commercial"
-              className="group relative w-full aspect-[16/9] md:aspect-[16/9] lg:h-[24rem] rounded-3xl overflow-hidden border border-gray-200 hover:border-brand-accent/30 transition-all cursor-pointer shadow-xl block"
+              className="group relative w-full aspect-[16/9] md:aspect-[16/9] lg:h-[20rem] rounded-3xl overflow-hidden border border-gray-200 hover:border-brand-accent/30 transition-all cursor-pointer shadow-xl block"
             >
               <img
                 loading="lazy"
@@ -242,11 +243,11 @@ const Home = () => {
                 alt="Commercial"
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-gray-900/90 via-gray-900/40 to-transparent flex flex-col justify-end p-12">
-                <h3 className="text-4xl font-bold text-white mb-3 group-hover:text-brand-accent transition-colors">
+              <div className="absolute inset-0 bg-gradient-to-t from-gray-900/90 via-gray-900/40 to-transparent flex flex-col justify-end p-10">
+                <h3 className="text-3xl md:text-4xl font-bold text-white mb-3 group-hover:text-brand-accent transition-colors">
                   Commercial Designer
                 </h3>
-                <p className="text-gray-200 text-lg transform translate-y-4 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+                <p className="text-gray-200 text-base md:text-lg transform translate-y-4 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
                   Offices, retail stores, cafes, and corporate spaces.
                 </p>
               </div>
@@ -256,7 +257,7 @@ const Home = () => {
       </div>
 
       {/* 4. FEATURED PROFESSIONALS SECTION */}
-      <section className="py-24 bg-gray-50 border-y border-gray-200 px-4 relative overflow-hidden">
+      <section className="py-16 md:py-20 bg-gray-50 border-y border-gray-200 px-4 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] right-[-5%] w-96 h-96 bg-brand-accent/5 rounded-full blur-3xl"></div>
           <div className="absolute bottom-[-10%] left-[-5%] w-96 h-96 bg-blue-600/5 rounded-full blur-3xl"></div>
@@ -264,7 +265,7 @@ const Home = () => {
 
         <div className="container mx-auto px-4 relative z-10 max-w-7xl">
           <RevealOnScroll>
-            <div className="flex justify-between items-end mb-16">
+            <div className="flex justify-between items-end mb-12">
               <div>
                 <span className="text-brand-accent font-bold tracking-wider uppercase text-sm flex items-center gap-2">
                   <Zap size={16} className="fill-brand-accent" /> Top Rated
@@ -311,8 +312,10 @@ const Home = () => {
                     <h3 className="text-2xl font-bold text-gray-900 mb-3">{designer.name}</h3>
 
                     <div className="flex flex-wrap justify-center gap-2 mb-10 w-full">
-                      <span className="flex items-center gap-1.5 bg-gray-100 text-gray-700 px-3 py-1 rounded-lg text-xs font-bold border border-gray-200">
-                        <MapPin size={12} /> {designer.city}
+                      <span className="flex items-center gap-1.5 bg-gray-100/80 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-200 shadow-2xs">
+                        <Building2 size={13} className="text-brand-accent shrink-0" />
+                        <MapPin size={12} className="text-gray-500 shrink-0" />
+                        <span>{designer.city}</span>
                       </span>
                       <span className="flex items-center gap-1.5 bg-brand-accent/5 text-brand-accent px-3 py-1 rounded-lg text-xs font-bold border border-brand-accent/10">
                         {designer.designer_type === "commercial" ? <Briefcase size={12} /> : <HomeIcon size={12} />}
@@ -342,10 +345,10 @@ const Home = () => {
       </section>
 
       {/* 5. NEW SECTION: THE ELEMENTS OF CRAFT (With Image) */}
-      <section className="py-24 bg-white border-b border-gray-100">
+      <section className="py-16 md:py-20 bg-white border-b border-gray-100">
         <div className="container mx-auto px-4 max-w-7xl">
           <RevealOnScroll>
-            <div className="text-center mb-16">
+            <div className="text-center mb-12">
               <span className="text-brand-accent font-bold tracking-wider uppercase text-sm mb-4 block">The Craftsmanship</span>
               <h2 className="text-4xl md:text-5xl font-bold text-gray-900 tracking-tight">The Anatomy of Great Design</h2>
               <p className="mt-4 text-gray-600 text-lg max-w-2xl mx-auto">
@@ -354,9 +357,9 @@ const Home = () => {
             </div>
           </RevealOnScroll>
 
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <RevealOnScroll delay={100}>
-              <div className="relative h-[600px] rounded-[2.5rem] overflow-hidden shadow-xl group">
+              <div className="relative h-[420px] lg:h-[480px] rounded-[2.5rem] overflow-hidden shadow-xl group">
                 <img 
                   loading="lazy"
                   src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=1200&q=80" 
@@ -390,21 +393,21 @@ const Home = () => {
       </section>
 
       {/* 6. NEW SECTION: THE DESIGN JOURNEY (With Image) */}
-      <section className="py-24 bg-gray-900 text-white overflow-hidden relative">
+      <section className="py-16 md:py-20 bg-gray-900 text-white overflow-hidden relative">
         <div className="absolute top-0 right-0 w-1/2 h-full opacity-10">
            <img loading="lazy" src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1920&q=80" className="w-full h-full object-cover" alt="Background" />
            <div className="absolute inset-0 bg-gradient-to-l from-transparent to-gray-900"></div>
         </div>
 
         <div className="container mx-auto px-4 max-w-7xl relative z-10">
-          <div className="grid lg:grid-cols-12 gap-16 items-center">
+          <div className="grid lg:grid-cols-12 gap-12 lg:gap-16 items-center">
             <div className="lg:col-span-5">
               <RevealOnScroll>
                 <h2 className="text-4xl md:text-5xl font-bold mb-6">The Professional Process</h2>
-                <p className="text-gray-400 text-lg leading-relaxed mb-10">
+                <p className="text-gray-400 text-lg leading-relaxed mb-8">
                   How an independent designer takes your project from a raw concept to a finished masterpiece, ensuring transparency at every step.
                 </p>
-                <div className="relative h-80 rounded-3xl overflow-hidden shadow-2xl">
+                <div className="relative h-64 lg:h-72 rounded-3xl overflow-hidden shadow-2xl">
                    <img loading="lazy" src="https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=800&q=80" alt="Blueprint" className="w-full h-full object-cover opacity-80" />
                 </div>
               </RevealOnScroll>
@@ -432,11 +435,11 @@ const Home = () => {
       </section>
 
       {/* 7. TRANSFORMING SPACES */}
-      <section className="py-24 bg-white border-b border-gray-100">
+      <section className="py-16 md:py-20 bg-white border-b border-gray-100">
         <div className="container mx-auto px-4 max-w-7xl">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <RevealOnScroll>
-              <div className="rounded-[2.5rem] overflow-hidden shadow-2xl relative h-[600px] group">
+              <div className="rounded-[2.5rem] overflow-hidden shadow-2xl relative h-[420px] lg:h-[480px] group">
                 <img loading="lazy" src="https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=80" alt="Transformed Space" className="w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-105" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                 <div className="absolute bottom-8 left-8 right-8">
@@ -478,25 +481,25 @@ const Home = () => {
       </section>
 
       {/* 8. NEW SECTION: BEYOND AESTHETICS (With Image) */}
-      <section className="py-24 bg-gray-50 border-b border-gray-100">
+      <section className="py-16 md:py-20 bg-gray-50 border-b border-gray-100">
         <div className="container mx-auto px-4 max-w-7xl">
           <RevealOnScroll>
-            <div className="text-center mb-16 max-w-3xl mx-auto">
-              <h2 className="text-4xl font-bold text-gray-900 mb-6">Beyond Aesthetics</h2>
+            <div className="text-center mb-6 max-w-3xl mx-auto">
+              <h2 className="text-4xl font-bold text-gray-900 mb-2">Beyond Aesthetics</h2>
               <p className="text-xl text-gray-600">
                 The tangible, long-term benefits of investing in professional interior and commercial design.
               </p>
             </div>
           </RevealOnScroll>
 
-          <div className="grid lg:grid-cols-12 gap-16 items-center">
+          <div className="grid lg:grid-cols-12 gap-12 lg:gap-16 items-center">
             <div className="lg:col-span-5 space-y-8">
               <RevealOnScroll delay={100}>
                 <div className="bg-white p-8 rounded-3xl border border-gray-100 hover:shadow-xl transition-shadow">
-                  <div className="bg-green-50 w-14 h-14 rounded-2xl text-green-600 flex items-center justify-center mb-6">
+                  <div className="bg-green-50 w-full h-14 rounded-2xl text-green-600 flex items-center justify-center mb-6">
                     <Sparkles size={28} />
+                  <h3 className="text-2xl font-bold text-gray-900 mx-1">Property Value Addition</h3>
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-3">Property Value Addition</h3>
                   <p className="text-gray-600 leading-relaxed">
                     Thoughtful design is an investment, not an expense. Optimized layouts and high-quality finishes significantly increase the resale value of properties.
                   </p>
@@ -504,10 +507,10 @@ const Home = () => {
               </RevealOnScroll>
               <RevealOnScroll delay={200}>
                 <div className="bg-white p-8 rounded-3xl border border-gray-100 hover:shadow-xl transition-shadow">
-                  <div className="bg-blue-50 w-14 h-14 rounded-2xl text-blue-600 flex items-center justify-center mb-6">
+                  <div className="bg-blue-50 w-full h-14 rounded-2xl text-blue-600 flex items-center justify-center mb-6">
                     <Users size={28} />
+                  <h3 className="text-2xl font-bold text-gray-900 mx-1">Wellbeing & Productivity</h3>
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-3">Wellbeing & Productivity</h3>
                   <p className="text-gray-600 leading-relaxed">
                     In homes, proper design reduces visual clutter. In commercial spaces, ergonomic workstations directly correlate to a happier, more productive workforce.
                   </p>
@@ -517,7 +520,7 @@ const Home = () => {
 
             <div className="lg:col-span-7">
               <RevealOnScroll delay={300}>
-                <div className="relative h-[600px] rounded-[2.5rem] overflow-hidden shadow-2xl group">
+                <div className="relative h-[420px] lg:h-[480px] rounded-[2.5rem] overflow-hidden shadow-2xl group">
                   <img 
                     loading="lazy"
                     src="https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80" 
@@ -532,11 +535,11 @@ const Home = () => {
       </section>
 
       {/* 9. NEW SECTION: THE BOUTIQUE EXPERIENCE */}
-      <section className="py-24 bg-white border-b border-gray-100">
+      <section className="py-16 md:py-20 bg-white border-b border-gray-100">
         <div className="container mx-auto px-4 max-w-7xl">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
              <RevealOnScroll delay={100}>
-                <div className="relative h-[500px] rounded-[2.5rem] overflow-hidden shadow-xl group border border-gray-100">
+                <div className="relative h-[400px] lg:h-[440px] rounded-[2.5rem] overflow-hidden shadow-xl group border border-gray-100">
                   <img loading="lazy" src="/assets/boutique_studio_materials.png" alt="Curated Travertine and Linen samples" className="w-full h-full object-cover transition-transform duration-[2s] group-hover:scale-105" />
                 </div>
              </RevealOnScroll>
@@ -560,9 +563,9 @@ const Home = () => {
       </section>
 
       {/* 10. WHY CHOOSE US */}
-      <section className="py-32 px-4 bg-gray-50">
+      <section className="py-16 md:py-20 px-4 bg-gray-50">
         <div className="container mx-auto max-w-6xl">
-          <div className="grid md:grid-cols-2 gap-20 items-center">
+          <div className="grid md:grid-cols-2 gap-16 lg:gap-20 items-center">
             <div className="space-y-10">
               <RevealOnScroll>
                 <h2 className="text-4xl md:text-5xl font-bold text-gray-900 leading-tight">
@@ -609,7 +612,7 @@ const Home = () => {
             <RevealOnScroll delay={300}>
               <div className="relative group">
                 <div className="absolute inset-0 bg-gradient-to-tr from-brand-accent/20 to-transparent rounded-3xl blur-3xl"></div>
-                <div className="relative rounded-[2.5rem] border border-gray-200 shadow-2xl z-10 w-full h-[36rem] overflow-hidden">
+                <div className="relative rounded-[2.5rem] border border-gray-200 shadow-2xl z-10 w-full h-[28rem] lg:h-[30rem] overflow-hidden">
                   <img
                     loading="lazy"
                     src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80"
@@ -622,8 +625,8 @@ const Home = () => {
                     500+
                   </p>
                   <p className="text-gray-900 font-bold text-lg">Successful Projects</p>
-                  <p className="text-sm text-gray-500 mt-2 leading-relaxed">
-                    Connecting homes with heart across India with top-tier design professionals.
+                  <p className="text-sm text-gray-500 mt-2 leading-relaxed flex items-center gap-1">
+                    <Building2 size={14} className="text-brand-accent inline shrink-0" /> Connecting homes with heart across India with top-tier design professionals.
                   </p>
                 </div>
               </div>
@@ -633,7 +636,7 @@ const Home = () => {
       </section>
 
       {/* 11. CTA */}
-      <section className="py-24 relative overflow-hidden bg-brand-accent">
+      <section className="py-16 md:py-20 relative overflow-hidden bg-brand-accent">
         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1618221381711-42cb25ac9e0f?auto=format&fit=crop&w=1920&q=80')] opacity-10 mix-blend-overlay object-cover"></div>
         <div className="container mx-auto px-4 relative z-10 text-center">
           <RevealOnScroll>

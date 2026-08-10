@@ -25,7 +25,10 @@ import {
   OnboardingGuard,
 } from "./components/AuthRoutes";
 
+import CompleteProfile from "./pages/CompleteProfile";
+
 const AdminDashboard = React.lazy(() => import("./pages/AdminDashboard"));
+const DesignerDashboard = React.lazy(() => import("./pages/DesignerDashboard"));
 
 const PageLoader = () => (
   <div className="min-h-[60vh] flex flex-col items-center justify-center">
@@ -60,6 +63,7 @@ function App() {
             <Route path="/terms" element={<TermsOfServices />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/update-password" element={<UpdatePassword />} />
+            <Route path="/complete-profile" element={<CompleteProfile />} />
             <Route path="*" element={<NotFound />} />
             <Route element={<RequireGuest />}>
               <Route path="/login" element={<Login />} />
@@ -79,6 +83,14 @@ function App() {
                 element={
                   <Suspense fallback={<PageLoader />}>
                     <AdminDashboard />
+                  </Suspense>
+                } 
+              />
+              <Route 
+                path="/admin/manage-designer/:id" 
+                element={
+                  <Suspense fallback={<PageLoader />}>
+                    <DesignerDashboard />
                   </Suspense>
                 } 
               />

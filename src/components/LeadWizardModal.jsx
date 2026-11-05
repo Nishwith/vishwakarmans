@@ -2,14 +2,6 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ChevronRight, ChevronLeft, Home, Palette, DollarSign, Calendar, MessageSquare, Loader2 } from "lucide-react";
 
-const steps = [
-  { id: 1, title: "Project Scope", icon: Home },
-  { id: 2, title: "Preferred Style", icon: Palette },
-  { id: 3, title: "Budget Range", icon: DollarSign },
-  { id: 4, title: "Timeline", icon: Calendar },
-  { id: 5, title: "Final Details", icon: MessageSquare },
-];
-
 const scopes = ["Full Home", "Living Room", "Kitchen", "Bedroom", "Bathroom", "Commercial / Office"];
 const styles = ["Modern", "Minimalist", "Traditional", "Bohemian", "Industrial", "Eclectic"];
 const budgets = ["Under ₹5 Lakhs", "₹5L - ₹15L", "₹15L - ₹30L", "₹30L+"];

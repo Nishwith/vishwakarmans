@@ -52,7 +52,7 @@ function App() {
         }}
       />
       <Navbar />
-      <div className="pt-16 md:pt-20">
+      <div className="pt-0 md:pt-20 overflow-x-hidden min-h-screen">
         <OnboardingGuard>
           <Routes>
             {/* Public */}

@@ -14,11 +14,16 @@ import {
   ChevronDown,
   Globe,
   Building2,
+  Navigation,
+  Loader2,
+  X,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import { Link, useSearchParams } from "react-router-dom";
 import SkeletonCard from "../components/SkeletonCard"; // Import Skeleton
 import { motion, AnimatePresence } from "framer-motion";
 import { useCurrentUser, useUserProfile } from "../hooks/useAuth";
+import { isDesignerPubliclyEligible } from "../utils/designerVisibility";
 
 // --- CUSTOM CITY DROPDOWN COMPONENT WITH LOCATION ICONS ---
 const CityDropdown = ({ selectedCity, setSelectedCity, cities }) => {
@@ -103,6 +108,10 @@ const Designers = () => {
   const [selectedCity, setSelectedCity] = useState("All");
   const [selectedType, setSelectedType] = useState("All");
 
+  // NEARBY RADIUS SEARCH STATE
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [isNearbyActive, setIsNearbyActive] = useState(false);
+
   const cities = [
     "All",
     "Hyderabad",
@@ -146,14 +155,7 @@ const Designers = () => {
 
       // --- Filter out Expired Profiles ---
       const now = new Date();
-      const validDesigners = (data || []).filter((designer) => {
-        // Check Subscription Expiry
-        if (designer.subscription_end) {
-          const endDate = new Date(designer.subscription_end);
-          if (endDate < now) return false;
-        }
-        return true;
-      });
+      const validDesigners = (data || []).filter((designer) => isDesignerPubliclyEligible(designer, now));
 
       // --- Sort Active Featured Designers to top ---
       validDesigners.sort((a, b) => {
@@ -179,6 +181,67 @@ const Designers = () => {
     }
   };
 
+  // Trigger Geolocation API and query nearby designers via RPC
+  const handleFindNearby = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          const { data, error } = await supabase.rpc("get_designers_nearby", {
+            user_lat: latitude,
+            user_lng: longitude,
+            radius_meters: 50000, // default to 50km radius
+          });
+
+          if (error) throw error;
+
+          const nearbyList = data || [];
+          setDesigners(nearbyList);
+          setIsNearbyActive(true);
+          setSelectedCity("All");
+
+          if (nearbyList.length === 0) {
+            toast("No designers found within 50km of your location.", { icon: "📍" });
+          } else {
+            toast.success(`Found ${nearbyList.length} designers near you!`);
+          }
+        } catch (err) {
+          console.error("Nearby search error:", err);
+          toast.error(err.message || "Failed to find nearby designers.");
+        } finally {
+          setGeoLoading(false);
+        }
+      },
+      (geoError) => {
+        setGeoLoading(false);
+        console.error("Geolocation error:", geoError);
+        let message = "Unable to retrieve your location.";
+        if (geoError.code === 1) {
+          message = "Location permission denied. Please allow location access in your browser settings.";
+        } else if (geoError.code === 2) {
+          message = "Location position unavailable.";
+        } else if (geoError.code === 3) {
+          message = "Location request timed out.";
+        }
+        toast.error(message);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const handleClearNearby = () => {
+    setIsNearbyActive(false);
+    setSelectedCity("All");
+    fetchDesigners();
+    toast.success("Nearby filter cleared.");
+  };
+
   const filteredDesigners = designers.filter((designer) => {
     const matchesSearch =
       designer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -200,23 +263,27 @@ const Designers = () => {
     setSearchTerm("");
     setSelectedCity("All");
     setSelectedType("All");
+    if (isNearbyActive) {
+      setIsNearbyActive(false);
+      fetchDesigners();
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-4 pb-20 px-8">
+    <div className="min-h-screen bg-gray-50 px-4 py-6 md:px-8 md:py-10">
       {/* HEADER */}
-      <div className="max-w-7xl mx-auto mb-12 text-center">
-        <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4 animate-fade-in">
+      <div className="max-w-7xl mx-auto mb-8 md:mb-12 text-center">
+        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-4 animate-fade-in">
           Find Your Perfect <span className="text-brand-accent">Designer</span>
         </h1>
-        <p className="text-gray-500 text-lg max-w-2xl mx-auto">
+        <p className="text-gray-500 text-base sm:text-lg max-w-2xl mx-auto">
           Browse verified top-tier designers for your dream home or office
           space.
         </p>
       </div>
 
       {/* FILTER BAR */}
-      <div className="max-w-7xl mx-auto border border-gray-200 rounded-2xl p-4 md:p-6 mb-12 shadow-2xl sticky top-24 z-30 backdrop-blur-xl bg-white/90">
+      <div className="max-w-7xl mx-auto border border-gray-200 rounded-2xl p-4 md:p-6 mb-8 md:mb-12 shadow-2xl sticky top-4 md:top-24 z-30 backdrop-blur-xl bg-white/90">
         <div className="flex flex-col md:flex-row gap-4">
           {/* Custom City Filter Dropdown */}
           <CityDropdown
@@ -232,7 +299,7 @@ const Designers = () => {
               size={18}
             />
             <select
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-10 pr-8 text-gray-900 focus:outline-none focus:border-brand-accent appearance-none cursor-pointer"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-10 pr-8 text-gray-900 focus:outline-none focus:border-brand-accent appearance-none cursor-pointer min-h-[48px]"
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
             >
@@ -253,7 +320,7 @@ const Designers = () => {
             <input
               type="text"
               placeholder="Search by name or style (e.g. Modern)..."
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-12 pr-4 text-gray-900 focus:outline-none focus:border-brand-accent transition-colors"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-12 pr-4 text-gray-900 focus:outline-none focus:border-brand-accent transition-colors min-h-[48px]"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -261,10 +328,56 @@ const Designers = () => {
         </div>
       </div>
 
+      {/* NEARBY FILTER ACTION BAR ABOVE GRID */}
+      <div className="max-w-7xl mx-auto mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleFindNearby}
+            disabled={geoLoading}
+            className={`px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2.5 transition-all shadow-sm cursor-pointer ${
+              isNearbyActive
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
+                : "bg-gray-900 hover:bg-black text-white active:scale-95"
+            } disabled:opacity-60 disabled:cursor-not-allowed`}
+          >
+            {geoLoading ? (
+              <>
+                <Loader2 size={18} className="animate-spin text-brand-accent" />
+                <span>Locating Designers...</span>
+              </>
+            ) : (
+              <>
+                <Navigation size={18} className={isNearbyActive ? "text-white" : "text-brand-accent"} />
+                <span>Find Designers Near Me</span>
+              </>
+            )}
+          </button>
+
+          {isNearbyActive && (
+            <button
+              type="button"
+              onClick={handleClearNearby}
+              className="px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl font-bold text-sm flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+            >
+              <X size={16} />
+              <span>Clear Filter</span>
+            </button>
+          )}
+        </div>
+
+        {isNearbyActive && (
+          <div className="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 animate-fade-in shadow-xs">
+            <CheckCircle size={14} className="text-emerald-600" />
+            <span>Showing designers within 50km radius ({filteredDesigners.length} found)</span>
+          </div>
+        )}
+      </div>
+
       {/* GRID SECTION */}
       <div className="max-w-7xl mx-auto">
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {[1, 2, 3, 4, 5, 6].map((n) => (
               <SkeletonCard key={n} />
             ))}
@@ -275,7 +388,22 @@ const Designers = () => {
             <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
               <Search size={32} className="text-gray-500" />
             </div>
-            {selectedCity !== "All" && selectedCity !== "Other" ? (
+            {isNearbyActive ? (
+              <>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  No designers found near your location
+                </h3>
+                <p className="text-gray-500 mb-6 max-w-md">
+                  We couldn't find any registered designers within a 50km radius. Try clearing the filter to view all available designers.
+                </p>
+                <button
+                  onClick={handleClearNearby}
+                  className="px-6 py-2.5 bg-brand-accent text-white rounded-xl font-bold hover:bg-orange-600 transition-colors shadow-md cursor-pointer"
+                >
+                  Clear Filter & View All
+                </button>
+              </>
+            ) : selectedCity !== "All" && selectedCity !== "Other" ? (
               <>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">
                   We don't have designers in that city yet.
@@ -311,7 +439,7 @@ const Designers = () => {
           </div>
         ) : (
           /* DESIGNER CARDS */
-          <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             <AnimatePresence>
             {filteredDesigners.map((designer) => (
               <motion.div
@@ -324,7 +452,7 @@ const Designers = () => {
               >
                 <Link
                   to={`/designers/${designer.id}`}
-                  className="group relative bg-white border border-gray-100 rounded-3xl p-8 hover:border-brand-accent/50 transition-all hover:shadow-2xl hover:-translate-y-1 flex flex-col h-full"
+                  className="group relative bg-white border border-gray-100 rounded-3xl p-6 sm:p-8 hover:border-brand-accent/50 transition-all hover:shadow-2xl hover:-translate-y-1 flex flex-col h-full"
                 >
                 {/* Header: Logo & Name */}
                 <div className="flex items-start gap-4 mb-4">

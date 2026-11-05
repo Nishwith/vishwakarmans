@@ -96,13 +96,13 @@ const AboutContact = () => {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       {/* ==================== ABOUT SECTION ==================== */}
-      <section id="about" className="py-20 px-4 border-b border-gray-100">
+      <section id="about" className="py-16 md:py-20 px-4 sm:px-6 lg:px-8 border-b border-gray-100">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <h1 className="text-4xl md:text-5xl font-bold mb-6">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6">
               About <span className="text-brand-accent">Vishwakarmans</span>
             </h1>
-            <p className="text-xl text-gray-500 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-lg sm:text-xl text-gray-500 max-w-3xl mx-auto leading-relaxed">
               We are India's premier platform connecting discerning homeowners
               with elite interior and commercial designers. Our mission is to
               bridge the gap between vision and reality.
@@ -143,7 +143,7 @@ const AboutContact = () => {
       </section>
 
       {/* ==================== CONTACT SECTION ==================== */}
-      <section id="contact" className="py-20 px-4">
+      <section id="contact" className="py-16 md:py-20 px-4 sm:px-6 lg:px-8">
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">

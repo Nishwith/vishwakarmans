@@ -33,6 +33,9 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import LeadWizardModal from "../components/LeadWizardModal";
+import ProjectMaterialsList from "../components/ProjectMaterialsList";
+import { getRoomMaterials } from "../utils/projectMaterials";
+import { isDesignerPubliclyEligible } from "../utils/designerVisibility";
 
 // --- HELPER: SMART EMBED URL ---
 const getEmbedUrl = (url) => {
@@ -55,7 +58,7 @@ const getEmbedUrl = (url) => {
 const parseProjectCategory = (catStr) => {
   try {
     return JSON.parse(catStr);
-  } catch (e) {
+  } catch {
     return { categories: [catStr], description: "" };
   }
 };
@@ -85,10 +88,10 @@ const PublicProjectCard = ({ project, onClick }) => {
       onClick={() => onClick(project)}
     >
       {/* Image Slider */}
-      <div className="h-64 sm:h-48 relative bg-gray-100 overflow-hidden shrink-0">
+      <div className="w-full aspect-video relative bg-gray-100 overflow-hidden shrink-0">
         <img 
           src={images[currentIndex]?.image_url || "/placeholder.jpg"} 
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+          className="w-full h-full object-cover aspect-video transition-transform duration-700 group-hover:scale-105" 
           alt={project.title} 
           loading="lazy"
         />
@@ -146,19 +149,6 @@ const ProjectDetailModal = ({ project, onClose }) => {
   const description = parsedData.description || "";
   const place = project.place || "";
 
-  let roomMaterialsObj = null;
-  if (project.room_materials) {
-    if (typeof project.room_materials === "object") {
-      roomMaterialsObj = project.room_materials;
-    } else if (typeof project.room_materials === "string") {
-      try {
-        roomMaterialsObj = JSON.parse(project.room_materials);
-      } catch {
-        roomMaterialsObj = null;
-      }
-    }
-  }
-
   // Extract available rooms
   const roomsWithImages = [...new Set(images.map(img => img.room_category).filter(Boolean))];
   const availableRooms = roomsWithImages.length > 0 ? roomsWithImages : parsedData.categories || [];
@@ -187,16 +177,8 @@ const ProjectDetailModal = ({ project, onClose }) => {
     setCurrentIndex(0); // Reset to first image of new category
   };
 
-  const activeRoomMaterialsRaw =
-    activeRoom !== "All" && roomMaterialsObj ? roomMaterialsObj[activeRoom] : null;
-
-  const activeRoomMaterials = Array.isArray(activeRoomMaterialsRaw)
-    ? activeRoomMaterialsRaw.join(", ")
-    : typeof activeRoomMaterialsRaw === "string"
-    ? activeRoomMaterialsRaw.trim()
-    : null;
-
-  const hasRoomMaterials = Boolean(activeRoomMaterials);
+  const hasActiveRoomMaterials = activeRoom !== "All" &&
+    getRoomMaterials(project.room_materials, activeRoom).length > 0;
 
   return (
     <div className="fixed inset-0 z-[200] bg-gray-900/80 backdrop-blur-md flex items-center justify-center p-2 md:p-6 animate-in fade-in duration-300">
@@ -254,16 +236,8 @@ const ProjectDetailModal = ({ project, onClose }) => {
 
             {/* Contextual Description vs. Materials Block */}
             <div className="mt-auto pt-8 border-t border-gray-200">
-              {activeRoom !== "All" && hasRoomMaterials ? (
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400">
-                    Materials Used
-                  </h4>
-                  <div className="text-sm md:text-base">
-                    <span className="font-bold text-gray-900 font-serif">{activeRoom}: </span>
-                    <span className="text-gray-700 font-light leading-relaxed">{activeRoomMaterials}</span>
-                  </div>
-                </div>
+              {hasActiveRoomMaterials ? (
+                <ProjectMaterialsList roomMaterials={project.room_materials} room={activeRoom} />
               ) : description ? (
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">
@@ -588,6 +562,10 @@ const DesignerProfile = () => {
         setLoading(false);
         return;
       }
+      if (!isDesignerPubliclyEligible(designerData) && designerData.user_id !== user?.id) {
+        setLoading(false);
+        return;
+      }
       setDesigner(designerData);
 
       const { data: projectsData } = await supabase
@@ -721,10 +699,10 @@ const DesignerProfile = () => {
       initial="hidden" 
       animate="visible" 
       variants={containerVariants}
-      className="min-h-screen bg-gray-50 pt-4 pb-20 overflow-hidden"
+      className="min-h-screen bg-gray-50 px-4 py-6 md:px-8 md:py-10 overflow-hidden"
     >
       {/* HEADER */}
-      <motion.div variants={itemVariants} className="relative bg-white border-b border-gray-100 pb-6 pt-0 px-4 shadow-sm">
+      <motion.div variants={itemVariants} className="relative bg-white border-b border-gray-100 pb-6 pt-0 px-4 sm:px-6 shadow-sm rounded-3xl">
         <div className="max-w-6xl mx-auto">
           <button
             onClick={() => navigate(-1)}
@@ -732,11 +710,11 @@ const DesignerProfile = () => {
           >
             <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> Back
           </button>
-          <div className="flex flex-col md:flex-row items-start gap-6">
+          <div className="flex flex-col md:flex-row items-center md:items-start text-center md:text-left gap-6">
             <motion.div 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="w-20 h-20 md:w-32 md:h-32 bg-gray-50 rounded-3xl border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center text-3xl font-bold text-brand-accent shadow-xl"
+              className="w-24 h-24 md:w-32 md:h-32 bg-gray-50 rounded-3xl border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center text-3xl font-bold text-brand-accent shadow-xl mx-auto md:mx-0"
             >
               {designer.logo_url ? (
                 <img
@@ -750,20 +728,20 @@ const DesignerProfile = () => {
               )}
             </motion.div>
             <div className="flex-1 w-full">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl md:text-4xl font-bold text-gray-900 flex items-center gap-3">
+              <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-4">
+                <div className="flex flex-col items-center md:items-start">
+                  <h1 className="text-2xl md:text-4xl font-bold text-gray-900 flex flex-wrap items-center justify-center md:justify-start gap-3">
                     {designer.name}
                     {designer.is_verified && (
                       <CheckCircle size={28} className="text-brand-accent" />
                     )}
                     {designer.featured_status === "featured" && (
-                      <span className="text-xs bg-green-500/20 text-green-400 border border-green-500/50 px-3 py-1 rounded-full font-bold uppercase tracking-wider">
+                      <span className="text-xs bg-green-500/20 text-green-600 border border-green-500/50 px-3 py-1 rounded-full font-bold uppercase tracking-wider">
                         Featured
                       </span>
                     )}
                   </h1>
-                  <div className="flex items-center gap-4 mt-3 text-gray-500">
+                  <div className="flex flex-wrap justify-center md:justify-start items-center gap-4 mt-3 text-gray-500">
                     <span className="flex items-center gap-1">
                       <MapPin size={18} /> {designer.city}
                     </span>
@@ -792,20 +770,19 @@ const DesignerProfile = () => {
                   </div>
                   
                 </div>
-                <div className="hidden md:block">
-                  {/* Both accepted and on_hold are "connected" concepts but we display them differently */}
+                <div className="w-full md:w-auto mt-4 md:mt-0">
                   {connection?.status === "accepted" ? (
-                    <button className="px-6 py-3 bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl font-bold flex items-center gap-2 cursor-default">
+                    <button className="w-full md:w-auto px-6 py-3 bg-green-500/10 text-green-600 border border-green-500/30 rounded-xl font-bold flex items-center justify-center gap-2 cursor-default min-h-[48px]">
                       <CheckCircle size={20} /> Connected
                     </button>
                   ) : connection?.status === "on_hold" ? (
-                    <button disabled className="px-6 py-3 bg-orange-50 text-orange-600 border border-orange-200 rounded-xl font-bold flex items-center gap-2 cursor-not-allowed">
+                    <button disabled className="w-full md:w-auto px-6 py-3 bg-orange-50 text-orange-600 border border-orange-200 rounded-xl font-bold flex items-center justify-center gap-2 cursor-not-allowed min-h-[48px]">
                       <Clock size={18} /> Request On Hold
                     </button>
                   ) : connection?.status === "pending" ? (
                     <button
                       disabled
-                      className="px-6 py-3 bg-gray-100 text-gray-500 border border-gray-200 rounded-xl font-bold cursor-not-allowed"
+                      className="w-full md:w-auto px-6 py-3 bg-gray-100 text-gray-500 border border-gray-200 rounded-xl font-bold cursor-not-allowed min-h-[48px] flex items-center justify-center"
                     >
                       Request Sent
                     </button>
@@ -817,7 +794,7 @@ const DesignerProfile = () => {
                         setShowLeadWizard(true);
                       }}
                       disabled={isSending}
-                      className="px-8 py-3 bg-brand-accent hover:bg-orange-600 text-white font-bold rounded-xl shadow-lg transition-all flex items-center gap-2"
+                      className="w-full md:w-auto px-8 py-3 bg-brand-accent hover:bg-orange-600 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 min-h-[48px]"
                     >
                       {isSending ? (
                         <Loader2 className="animate-spin" />
@@ -884,7 +861,7 @@ const DesignerProfile = () => {
                 No projects uploaded yet.
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {projects.map((proj) => (
                   <PublicProjectCard
                     key={proj.id}
@@ -1026,6 +1003,31 @@ const DesignerProfile = () => {
             )}
           </div>
         </motion.div>
+      </div>
+
+      {/* MOBILE STICKY ACTION BAR */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-gray-200 z-40 shadow-2xl">
+        {connection?.status === "accepted" ? (
+          <button onClick={() => navigate("/connect")} className="w-full py-3 bg-green-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 min-h-[48px]">
+            <CheckCircle size={18} /> View Connection
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              if (!currentUser) return navigate("/login");
+              if (!clientProfile?.profile_completed || !clientProfile?.phone) return navigate("/complete-profile");
+              setShowLeadWizard(true);
+            }}
+            disabled={isSending || connection?.status === "pending"}
+            className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 min-h-[48px] ${
+              connection?.status === "pending"
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-brand-accent text-white shadow-lg"
+            }`}
+          >
+            {isSending ? <Loader2 className="animate-spin" /> : connection?.status === "pending" ? "Request Pending..." : "Connect Now"}
+          </button>
+        )}
       </div>
 
       {/* FULL SCREEN PROJECT MODAL */}

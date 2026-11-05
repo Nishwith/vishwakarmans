@@ -48,13 +48,17 @@ import toast from "react-hot-toast";
 import { compressImage } from "../utils/imageCompression";
 import { useQueryClient } from "@tanstack/react-query";
 import { signOut } from "../services/authService";
+import {
+  createInquiryMutationHandler,
+  isAdminWorkspaceOverride,
+} from "../utils/adminWorkspacePermissions";
 
 // --- HELPER TO PARSE PROJECT JSON DATA ---
 const parseProjectCategory = (catStr) => {
   try {
     const parsed = JSON.parse(catStr);
     return parsed;
-  } catch (e) {
+  } catch {
     return { categories: [catStr], description: "" };
   }
 };
@@ -810,7 +814,7 @@ const EditProjectModal = ({ project, designerId, onClose, onUpdate }) => {
 
 
 // --- COMPONENT: LEAD CARD ---
-const LeadCard = ({ lead, onStatusUpdate }) => {
+const LeadCard = ({ lead, onStatusUpdate, isReadOnly = false }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const details = parseLeadMessage(lead.message);
 
@@ -859,7 +863,7 @@ const LeadCard = ({ lead, onStatusUpdate }) => {
             </div>
           )}
 
-          <div className="mt-5 pt-5 border-t border-gray-100">
+          {!isReadOnly && <div className="mt-5 pt-5 border-t border-gray-100">
             {lead.status === "pending" && (
               <div className="flex flex-col sm:flex-row gap-3">
                 <button onClick={() => onStatusUpdate(lead.id, "accepted")} className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2"><UserCheck size={18} /> Accept Active</button>
@@ -879,7 +883,7 @@ const LeadCard = ({ lead, onStatusUpdate }) => {
                 <button onClick={() => { if (window.confirm("Permanently delete this row?")) onStatusUpdate(lead.id, "delete"); }} className="flex items-center justify-center gap-2 flex-1 px-4 py-3 bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold"><Trash2 size={18} /> Delete</button>
               </div>
             )}
-          </div>
+          </div>}
         </div>
       )}
     </div>
@@ -901,7 +905,7 @@ const ProjectCard = ({ proj, onDelete, onEdit }) => {
   };
   const prevImage = (e) => {
     e.preventDefault(); e.stopPropagation();
-    if (images.length > 1) setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
+    if (images.length > 1) setCurrentImgIndex((prev) => (prev - 1 + images.length) % images.length);
   };
 
   return (
@@ -980,6 +984,11 @@ const DesignerDashboard = () => {
   const [uploading, setUploading] = useState(false);
   const [leads, setLeads] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [authenticatedRole, setAuthenticatedRole] = useState(null);
+  const isAdminOverride = isAdminWorkspaceOverride({
+    designerRouteId: adminDesignerId,
+    authenticatedRole,
+  });
   
   const [profileForm, setProfileForm] = useState({
     name: "", city: "", projects_completed: 0, about_text: "", experience_years: 0,
@@ -1012,6 +1021,7 @@ const DesignerDashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setAuthenticatedRole(null);
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return navigate("/login");
         
@@ -1019,6 +1029,7 @@ const DesignerDashboard = () => {
         if (adminDesignerId) {
           const { data: userData } = await supabase.from("users").select("role").eq("id", session.user.id).single();
           if (userData?.role !== "admin") return navigate("/");
+          setAuthenticatedRole(userData.role);
           const { data: targetDesigner } = await supabase.from("designers").select("*").eq("id", adminDesignerId).maybeSingle();
           designerData = targetDesigner;
         } else {
@@ -1119,7 +1130,7 @@ const DesignerDashboard = () => {
     }
   };
 
-  const handleStatusUpdate = async (id, status) => {
+  const handleStatusUpdate = createInquiryMutationHandler(isAdminOverride, async (id, status) => {
     try {
       if (status === "delete") {
         const { error } = await supabase.from("connections").delete().eq("id", id);
@@ -1136,8 +1147,11 @@ const DesignerDashboard = () => {
         });
         toast.success(`Moved to ${status === 'accepted' ? 'Active' : 'On Hold'}`);
       }
-    } catch (error) { toast.error("Failed to update status."); }
-  };
+    } catch (error) {
+      console.error("Failed to update inquiry status:", error);
+      toast.error("Failed to update status.");
+    }
+  });
 
   const addTag = () => {
     if (newTag && !profileForm.style_tags.includes(newTag)) {
@@ -1342,7 +1356,12 @@ const DesignerDashboard = () => {
                   </div>
                 ) : (
                   leads.filter((l) => l.status === leadFilter).map((lead) => (
-                    <LeadCard key={lead.id} lead={lead} onStatusUpdate={handleStatusUpdate} />
+                    <LeadCard
+                      key={lead.id}
+                      lead={lead}
+                      onStatusUpdate={handleStatusUpdate}
+                      isReadOnly={isAdminOverride}
+                    />
                   ))
                 )}
               </div>

@@ -1,0 +1,5 @@
+# Storage and media
+
+Designer dashboard compresses selected image files, uploads directly with `storage.from("portfolio").upload(...)`, obtains a public URL and inserts `project_images` metadata. Admin flows also upload designer logos. Homeowner profile/project views render media URLs. `config.js` offers optional `VITE_MEDIA_BASE_URL` prefixing. `worker/media-proxy.js` and Wrangler config exist, but route deployment/wiring is unverified.
+
+Create/edit operations span Storage and database calls and can partially succeed. Deleting metadata does not by itself delete the object; verify cleanup paths. The prompt's assertion that `portfolio` is public and broad upload policies exist is not verified by the migration. Confirm deployed bucket visibility, MIME/size limits, path ownership, overwrite behavior, RLS and Worker caching. Worker source caches returned public objects for one year as immutable and has no purge flow; this is safe only if storage keys are never overwritten or a versioning strategy is used. The Worker is not proven deployed. Client-side compression/type validation is bypassable and is not an authorization control.

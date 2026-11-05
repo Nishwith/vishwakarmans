@@ -31,13 +31,15 @@ const Navbar = () => {
 
 
   return (
-    <nav className="bg-white/95 backdrop-blur-lg border-b border-gray-200 fixed w-full z-[100] top-0 shadow-sm transition-all">
+    <nav className="bg-white/95 backdrop-blur-lg border-b border-gray-200 relative md:sticky md:top-0 w-full z-[100] shadow-sm transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 md:h-20">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 bg-brand-accent rounded-xl flex items-center justify-center shadow-md group-hover:shadow-lg transition-all group-hover:-translate-y-0.5">
-              <span className="text-white font-black text-xl">V</span>
-            </div>
+            <img
+              src="/logo.png"
+              alt="Vishwakarmans Logo"
+              className="h-9 md:h-11 w-auto object-contain transition-transform group-hover:scale-105"
+            />
             <span className="text-2xl font-black text-gray-900 tracking-tight group-hover:text-brand-accent transition-colors">
               Vishwakarmans
             </span>
@@ -132,32 +134,32 @@ const Navbar = () => {
       </div>
 
       {isOpen && (
-        <div className="md:hidden bg-white border-t border-gray-200 p-4 space-y-4 animate-fade-in shadow-xl">
+        <div className="md:hidden w-full bg-white border-t border-gray-200 p-4 space-y-3 animate-fade-in shadow-xl left-0 right-0">
           <Link
             to="/"
             onClick={() => setIsOpen(false)}
-            className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl"
+            className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl min-h-[44px] flex items-center"
           >
             Home
           </Link>
           <Link
             to="/designers"
             onClick={() => setIsOpen(false)}
-            className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl"
+            className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl min-h-[44px] flex items-center"
           >
             Find Designers
           </Link>
           <Link
             to="/connect"
             onClick={() => setIsOpen(false)}
-            className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl"
+            className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl min-h-[44px] flex items-center"
           >
             Connections
           </Link>
           <a
             href="https://designers-v.netlify.app"
             onClick={() => setIsOpen(false)}
-            className="block px-4 py-3 bg-orange-50 text-brand-accent font-bold rounded-xl border border-orange-200 text-center text-sm"
+            className="block px-4 py-3 bg-orange-50 text-brand-accent font-bold rounded-xl border border-orange-200 text-center text-sm min-h-[44px] flex items-center justify-center"
           >
             Are you a designer? Join
           </a>
@@ -165,7 +167,7 @@ const Navbar = () => {
             <Link
               to="/admin"
               onClick={() => setIsOpen(false)}
-              className="block px-4 py-3 text-brand-accent font-bold hover:bg-gray-50 rounded-xl"
+              className="block px-4 py-3 text-brand-accent font-bold hover:bg-gray-50 rounded-xl min-h-[44px] flex items-center"
             >
               Admin Panel
             </Link>
@@ -180,23 +182,23 @@ const Navbar = () => {
                 <Link
                   to="/profile"
                   onClick={() => setIsOpen(false)}
-                  className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl"
+                  className="block px-4 py-3 text-gray-900 font-semibold hover:bg-gray-50 hover:text-brand-accent rounded-xl min-h-[44px] flex items-center"
                 >
                   User Profile
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="text-red-500 w-full text-left font-bold px-4 py-3 flex items-center gap-3 hover:bg-red-50 rounded-xl transition-colors"
+                  className="text-red-500 w-full text-left font-bold px-4 py-3 flex items-center gap-3 hover:bg-red-50 rounded-xl transition-colors min-h-[44px]"
                 >
                   <LogOut size={18} /> Sign Out
                 </button>
               </div>
             ) : (
               <div className="flex flex-col gap-2 px-4 py-3">
-                <Link onClick={() => setIsOpen(false)} to="/login" className="w-full text-center text-gray-900 font-bold border border-gray-200 px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-colors">
+                <Link onClick={() => setIsOpen(false)} to="/login" className="w-full text-center text-gray-900 font-bold border border-gray-200 px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors min-h-[44px] flex items-center justify-center">
                   Login
                 </Link>
-                <Link onClick={() => setIsOpen(false)} to="/register" className="w-full text-center bg-brand-accent text-white px-4 py-2.5 rounded-xl font-bold hover:bg-orange-600 shadow-md transition-colors">
+                <Link onClick={() => setIsOpen(false)} to="/register" className="w-full text-center bg-brand-accent text-white px-4 py-3 rounded-xl font-bold hover:bg-orange-600 shadow-md transition-colors min-h-[44px] flex items-center justify-center">
                   Sign Up
                 </Link>
               </div>

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { useCurrentUser, useUserProfile } from "../hooks/useAuth";
+import { isDesignerPubliclyEligible } from "../utils/designerVisibility";
 
 // --- HELPER COMPONENT FOR SCROLL ANIMATIONS ---
 const RevealOnScroll = ({ children, delay = 0 }) => {
@@ -72,14 +73,16 @@ const Home = () => {
       try {
         const { data, error } = await supabase
           .from("designers")
-          .select("id, name, city, designer_type, rating_avg, logo_url")
+          .select("id, name, city, designer_type, rating_avg, logo_url, is_verified, is_public, is_subscription_active, subscription_end")
           .eq("featured_status", "featured")
           .eq("is_verified", true)
+          .eq("is_public", true)
+          .eq("is_subscription_active", true)
           .order("priority_score", { ascending: false })
           .limit(3);
 
         if (error) throw error;
-        if (mounted) setFeaturedDesigners(data || []);
+        if (mounted) setFeaturedDesigners((data || []).filter((designer) => isDesignerPubliclyEligible(designer)));
       } catch (err) {
         console.error("Error fetching featured:", err);
       } finally {
@@ -118,7 +121,7 @@ const Home = () => {
               Welcome to Vishwakarmans
             </span>
           </div>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black text-gray-900 tracking-tight whitespace-nowrap animate-fade-in leading-tight drop-shadow-sm">
+          <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-gray-900 tracking-tight animate-fade-in leading-tight drop-shadow-sm">
             Dream.{" "}
             <span className="text-brand-accent relative inline-block">
               Discover.
@@ -127,22 +130,22 @@ const Home = () => {
             Design.
           </h1>
           
-          <p className="text-lg md:text-xl text-gray-600 font-medium max-w-2xl mx-auto animate-fade-in delay-200 leading-relaxed">
+          <p className="text-base sm:text-lg md:text-xl text-gray-600 font-medium max-w-2xl mx-auto animate-fade-in delay-200 leading-relaxed px-2">
             Connect with talented Interior and Commercial designers.
             Browse stunning portfolios, compare unique styles, and transform your vision into reality.
           </p>
           
-          <div className="pt-4 flex flex-col sm:flex-row gap-4 justify-center animate-fade-in delay-300">
+          <div className="pt-4 flex flex-col sm:flex-row gap-4 justify-center items-center animate-fade-in delay-300 w-full max-w-md sm:max-w-none mx-auto">
             <Link
               to="/designers"
-              className="inline-flex items-center justify-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-xl text-lg font-bold hover:bg-brand-accent hover:text-white transition-all shadow-xl hover:shadow-orange-500/20 active:scale-95"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-gray-900 text-white px-8 py-4 rounded-xl text-lg font-bold hover:bg-brand-accent hover:text-white transition-all shadow-xl hover:shadow-orange-500/20 active:scale-95 min-h-[48px]"
             >
               Start Exploring <ArrowRight size={20} />
             </Link>
             {role !== "client" && (
               <Link
                 to={designerBtn.link}
-                className={`inline-flex items-center justify-center gap-3 bg-white border-2 border-gray-200 text-gray-900 px-8 py-4 rounded-xl text-lg font-bold hover:border-brand-accent hover:text-brand-accent transition-all shadow-md hover:shadow-xl active:scale-95 ${
+                className={`w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-white border-2 border-gray-200 text-gray-900 px-8 py-4 rounded-xl text-lg font-bold hover:border-brand-accent hover:text-brand-accent transition-all shadow-md hover:shadow-xl active:scale-95 min-h-[48px] ${
                   loadingRole && user ? "opacity-50 cursor-wait" : ""
                 }`}
               >

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { signUp } from "../services/authService";
-import { supabase } from "../services/supabaseClient";
+import { supabase } from "../supabaseClient";
 import GoogleSignInButton from "../components/GoogleSignInButton";
 
 const Register = () => {

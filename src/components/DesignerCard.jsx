@@ -64,7 +64,7 @@ const DesignerCard = ({ designer, activeCategory }) => {
         {/* CTA Button */}
         <Link 
           to={`/designers/${designer.id}`} 
-          className="w-full inline-flex items-center justify-center px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-white font-bold hover:bg-brand-accent hover:border-brand-accent transition-all group/btn"
+          className="w-full inline-flex items-center justify-center px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-bold hover:bg-brand-accent hover:text-white hover:border-brand-accent transition-all group/btn min-h-[48px]"
         >
           View Profile <ArrowRight size={16} className="ml-2 transition-transform group-hover/btn:translate-x-1" />
         </Link>

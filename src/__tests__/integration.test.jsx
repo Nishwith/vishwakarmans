@@ -70,6 +70,25 @@ const mockSupabaseClient = vi.hoisted(() => {
       getUser: () => Promise.resolve({ data: { user: { id: 'client-user-123' } }, error: null }),
     },
     from: fromMock,
+    rpc: vi.fn((fnName) => {
+      if (fnName === 'get_designers_nearby') {
+        return Promise.resolve({
+          data: [
+            {
+              id: 99,
+              name: 'Nearby Artisan Studio',
+              city: 'Secunderabad',
+              designer_type: 'interior',
+              logo_url: 'https://example.com/artisan.png',
+              rating_avg: 4.9,
+              is_verified: true,
+            },
+          ],
+          error: null,
+        });
+      }
+      return Promise.resolve({ data: [], error: null });
+    }),
   };
 });
 
@@ -140,6 +159,70 @@ describe('Vishwakarmans Client B2C Application Integration Tests', () => {
     await screen.findByText(/Studio Elite/i);
     expect(screen.getByText(/Studio Elite/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Hyderabad/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Find Designers Near Me/i)).toBeInTheDocument();
+  });
+
+  test('Find Designers Near Me invokes Geolocation and get_designers_nearby RPC, then clears filter', async () => {
+    authHooks.useCurrentUser.mockReturnValue({
+      data: { id: 'client-user-123', email: 'client@example.com' },
+      isLoading: false,
+    });
+    authHooks.useUserProfile.mockReturnValue({
+      data: { id: 'client-user-123', role: 'client', profile_completed: true },
+      isLoading: false,
+    });
+
+    // Mock navigator.geolocation
+    const getCurrentPositionMock = vi.fn((success) => {
+      success({
+        coords: {
+          latitude: 17.3850,
+          longitude: 78.4867,
+        },
+      });
+    });
+    vi.stubGlobal('navigator', {
+      ...globalThis.navigator,
+      geolocation: {
+        getCurrentPosition: getCurrentPositionMock,
+      },
+    });
+
+    const { userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <Designers />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    await screen.findByText(/Studio Elite/i);
+
+    const nearMeBtn = screen.getByRole('button', { name: /Find Designers Near Me/i });
+    await user.click(nearMeBtn);
+
+    expect(getCurrentPositionMock).toHaveBeenCalled();
+    expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('get_designers_nearby', {
+      user_lat: 17.3850,
+      user_lng: 78.4867,
+      radius_meters: 50000,
+    });
+
+    // Verify nearby designer is rendered
+    await screen.findByText(/Nearby Artisan Studio/i);
+    expect(screen.getByText(/Nearby Artisan Studio/i)).toBeInTheDocument();
+    expect(screen.getByText(/Clear Filter/i)).toBeInTheDocument();
+
+    // Click Clear Filter
+    const clearBtn = screen.getByRole('button', { name: /Clear Filter/i });
+    await user.click(clearBtn);
+
+    // Default designer restored
+    await screen.findByText(/Studio Elite/i);
+    expect(screen.getByText(/Studio Elite/i)).toBeInTheDocument();
   });
 
   test('OnboardingGuard redirects user with incomplete profile to /complete-profile', async () => {

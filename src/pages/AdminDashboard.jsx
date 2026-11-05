@@ -43,11 +43,14 @@ import {
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { signOut } from "../services/authService";
+import {
+  onboardDesignerApplicationWithSuccess,
+  rejectDesignerApplication,
+  verifyDesignerProfile,
+} from "../services/designerApplicationAdminService";
 
 // --- SUB-COMPONENT: FEATURE REQUEST EVALUATION MODAL ---
 const FeatureRequestModal = ({ designer, onClose, onApprove, onReject }) => {
-  if (!designer) return null;
-
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,6 +67,8 @@ const FeatureRequestModal = ({ designer, onClose, onApprove, onReject }) => {
     };
     fetchReviews();
   }, [designer?.id]);
+
+  if (!designer) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
@@ -566,7 +571,7 @@ const OverviewTab = ({
     return initial;
   });
 
-  const [reqSearch, setReqSearch] = useState("");
+  const [reqSearch] = useState("");
   const [featSearch, setFeatSearch] = useState("");
 
   const handleSavePriority = (id) => onUpdatePriority(id, priorityMap[id]);
@@ -1025,6 +1030,7 @@ const AdminDashboard = () => {
         supabase
           .from("designer_applications")
           .select("*")
+          .eq("status", "pending")
           .order("created_at", { ascending: false }),
         supabase
           .from("designers")
@@ -1295,42 +1301,22 @@ const AdminDashboard = () => {
       toast.success("Subscription extended by 1 year!");
       fetchAllData();
     } catch (err) {
+      console.error("Failed to renew subscription:", err);
       toast.error("Failed to renew subscription.");
     }
   };
 
   const handleOnboard = async (app) => {
-    const toastId = toast.loading("Onboarding...");
+    const toastId = toast.loading("Approving application...");
     try {
-      const { data: existing } = await supabase
-        .from("designers")
-        .select("id")
-        .eq("user_id", app.user_id)
-        .maybeSingle();
-      if (!existing) {
-        const { error: insertError } = await supabase.from("designers").insert({
-          user_id: app.user_id,
-          name: app.org_name,
-          city: app.city,
-          email: app.email,
-          phone: app.phone,
-          designer_type: app.designer_type,
-          is_verified: false,
-          rating_avg: 0,
-          rating_count: 0,
-        });
-        if (insertError) throw insertError;
-      }
-      await supabase.from("designer_applications").delete().eq("id", app.id);
-      await supabase
-        .from("users")
-        .update({ role: "designer" })
-        .eq("id", app.user_id);
-      toast.success("Onboarded!", { id: toastId });
+      await onboardDesignerApplicationWithSuccess(supabase, app, () => {
+        toast.success("Application approved. The designer can now access the dashboard and complete their profile.", { id: toastId });
+      });
       fetchAllData();
     } catch (err) {
-      console.error(err);
-      toast.error("Error Onboarding", { id: toastId });
+      console.error(`Failed to onboard application ${app?.id ?? "(missing id)"}:`, err);
+      toast.error(err.message || "Application approval failed.", { id: toastId });
+      fetchAllData();
     }
   };
 
@@ -1353,19 +1339,12 @@ const AdminDashboard = () => {
     setReviewingDesigner(null);
     setActiveTab("active");
     try {
-      await supabase
-        .from("designers")
-        .update({ 
-          is_verified: true,
-          is_subscription_active: false,
-          subscription_end: null,
-          is_public: false 
-        })
-        .eq("id", id);
+      await verifyDesignerProfile(supabase, id);
       toast.success("Designer Approved (Paywall Active)!", { id: toastId });
       fetchAllData();
-    } catch {
-      toast.error("Failed", { id: toastId });
+    } catch (error) {
+      console.error(`Failed to verify designer ${id}:`, error);
+      toast.error(error.message || "Designer verification failed.", { id: toastId });
       fetchAllData();
     }
   };
@@ -1399,9 +1378,14 @@ const AdminDashboard = () => {
   };
 
   const handleRejectApp = async (id) => {
-    if (window.confirm("Reject request?")) {
-      await supabase.from("designer_applications").delete().eq("id", id);
+    if (!window.confirm("Reject request?")) return;
+    try {
+      await rejectDesignerApplication(supabase, id);
+      toast.success("Application marked as rejected.");
       fetchAllData();
+    } catch (error) {
+      console.error("Failed to reject application:", error);
+      toast.error("Failed to reject application.");
     }
   };
   

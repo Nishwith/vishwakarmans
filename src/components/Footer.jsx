@@ -14,7 +14,7 @@ const Footer = () => {
       {/* Decorative Glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-1 bg-brand-accent/20 blur-[100px] pointer-events-none"></div>
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 mb-12">
           {/* 1. BRAND & SOCIALS (Span 5) */}
           <div className="lg:col-span-5 space-y-6">
@@ -22,9 +22,9 @@ const Footer = () => {
               <img
                 src="/logo.png"
                 alt="Vishwakarmans Logo"
-                className="h-10 md:h-12 w-auto object-contain opacity-95 transition-transform group-hover:scale-105"
+                className="h-8 md:h-10 w-auto object-contain opacity-95 transition-transform group-hover:scale-105"
               />
-              <span className="text-3xl font-black tracking-tight text-gray-900 group-hover:text-brand-accent transition-colors">
+              <span className="text-xl font-bold text-gray-900">
                 Vishwakarmans
               </span>
             </Link>

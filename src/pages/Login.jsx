@@ -99,14 +99,26 @@ const Login = () => {
   // --- FORGOT PASSWORD LOGIC ---
   const handleResetPassword = async (e) => {
     e.preventDefault();
-    if (!formData.email) {
+    const inputEmail = formData.email?.trim();
+    if (!inputEmail) {
       toast.error("Please enter your email address.");
       return;
     }
     setLoading(true);
     try {
-      await sendPasswordResetEmail(formData.email);
-      toast.success("Password reset link sent to your email!");
+      const { data } = await supabase
+        .from('users')
+        .select('email')
+        .eq('email', inputEmail)
+        .maybeSingle();
+
+      if (!data) {
+        toast.error("No account found with this email.");
+        return;
+      }
+
+      await sendPasswordResetEmail(inputEmail);
+      toast.success("Email link sent");
       setIsResetMode(false);
     } catch (error) {
       toast.error(error.message);
@@ -116,9 +128,9 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] md:min-h-[calc(100vh-5rem)] w-full flex flex-col md:flex-row bg-white animate-fade-in">
+    <div className="min-h-screen w-full flex flex-col md:flex-row justify-center bg-white animate-fade-in">
       {/* Left side: Form container */}
-      <div className="w-full md:w-1/2 flex flex-col justify-center px-6 py-12 md:px-12 xl:px-20 bg-white order-1">
+      <div className="w-full md:w-1/2 flex flex-col justify-center px-6 py-8 md:px-12 xl:px-20 bg-white order-1">
         <div className="m-auto w-full max-w-md space-y-6 animate-slide-up">
           <div className="space-y-2">
             <h2 className="text-4xl font-bold text-gray-900 tracking-tight font-heading">

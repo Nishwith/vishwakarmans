@@ -75,7 +75,7 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] md:min-h-[calc(100vh-5rem)] w-full flex flex-col md:flex-row bg-white animate-fade-in">
+    <div className="min-h-screen w-full flex flex-col md:flex-row justify-center bg-white animate-fade-in">
       {/* Left side: Form container */}
       <div className="w-full md:w-1/2 flex flex-col justify-center px-6 py-2 md:px-12 xl:px-20 bg-white order-1">
         <div className="m-auto w-full max-w-md space-y-6 animate-slide-up">

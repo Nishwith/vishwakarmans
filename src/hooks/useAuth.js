@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-import { getSession, getUser, getUserProfile } from '../services/authService';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { getSession, getUser, getUserProfile, signOut, handleLogout } from '../services/authService';
 
 /** Current auth session (null when anonymous). */
 export const useSession = () =>
@@ -7,6 +8,7 @@ export const useSession = () =>
     queryKey: ['auth', 'session'],
     queryFn: getSession,
     staleTime: 5 * 60 * 1000, // 5 min — session rarely changes mid-visit
+    retry: false,
   });
 
 /** Current auth user object. */
@@ -15,6 +17,7 @@ export const useCurrentUser = () =>
     queryKey: ['auth', 'user'],
     queryFn: getUser,
     staleTime: 5 * 60 * 1000,
+    retry: false,
   });
 
 /**
@@ -27,4 +30,18 @@ export const useUserProfile = (userId) =>
     queryFn: () => getUserProfile(userId),
     enabled: !!userId,
     staleTime: 60 * 1000,
+    retry: false,
   });
+
+/**
+ * Robust logout hook that clears React Query cache, Supabase auth session,
+ * storage, and redirects immediately without requiring a page refresh.
+ */
+export const useLogout = () => {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  return (redirectTo = "/login") => signOut(queryClient, navigate, redirectTo);
+};
+
+export { signOut, handleLogout };

@@ -12,6 +12,7 @@ import toast from "react-hot-toast";
 import { signUp } from "../services/authService";
 import { supabase } from "../supabaseClient";
 import GoogleSignInButton from "../components/GoogleSignInButton";
+import { claimVipDesignerProfile } from "../services/vipDesignerClaimService";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -46,28 +47,19 @@ const Register = () => {
         profile_completed: false,
       });
 
-      // VIP DESIGNER ACCOUNT CLAIMING LOGIC
-      if (data?.user) {
-        // Check if an admin pre-created a designer profile for this exact email
-        const { data: existingProfile } = await supabase
-          .from("designers")
-          .select("id")
-          .eq("email", formData.email)
-          .maybeSingle();
-
-        if (existingProfile) {
-          // Link the newly created auth user ID to the admin-created profile
-          await supabase
-            .from("designers")
-            .update({ user_id: data.user.id })
-            .eq("id", existingProfile.id);
+      // VIP ownership linking requires the verified Auth identity to be
+      // resolved and claimed server-side; the browser must not reassign by email.
+      if (data?.session) {
+        const claim = await claimVipDesignerProfile(supabase);
+        if (!claim.enabled) {
+          toast("VIP profile linking is awaiting the secure account-claim workflow. If you were invited as a VIP designer, contact our team.", { duration: 7000 });
         }
       }
 
       // Handle Success Message based on Confirmation setting
       if (data?.user && !data?.session) {
         toast.success(
-          "Registration successful! Please check your email to confirm your account.",
+          "Success! Please check your email to verify your account before logging in.",
           { duration: 6000 }
         );
         navigate("/login");

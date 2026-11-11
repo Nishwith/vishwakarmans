@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { isAdminAuthorizationRpcEnabled, checkServerAdminAuthorization, isAdminRoleHint } from "../services/phase1aAuthorizationService";
+import { isSecureDesignerRequestRpcEnabled, submitDesignerAccountRequest } from "../services/designerAccountRequestService";
+import { updateOwnDesignerProfile } from "../services/designerProfileService";
+import { archiveInquiry } from "../services/designerInquiryService";
 import {
   Users,
   Image as ImageIcon,
@@ -44,6 +48,27 @@ import {
   Globe,
   Sparkles
 } from "lucide-react";
+
+const countDesignerInquiries = async (designerId) => {
+  const { count, error } = await supabase
+    .from("connections")
+    .select("id", { count: "exact", head: true })
+    .eq("designer_id", designerId);
+
+  if (error) throw error;
+  return Number.isInteger(count) ? count : null;
+};
+
+const toSafeInquiryCount = (value) => {
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value >= 0 ? value : null;
+  }
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    const count = BigInt(value);
+    return count <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(count) : null;
+  }
+  return null;
+};
 import toast from "react-hot-toast";
 import { compressImage } from "../utils/imageCompression";
 import { useQueryClient } from "@tanstack/react-query";
@@ -212,7 +237,8 @@ const AddProjectModal = ({ onClose, onAdd, designerId }) => {
           uploadedImages.push({
             project_id: projData.id,
             image_url: data.publicUrl,
-            room_category: category, 
+            room_category: category,
+            materials_used: Array.isArray(roomMaterials[category]) ? roomMaterials[category] : [],
             is_cover: isFirstImageCover,
           });
           isFirstImageCover = false; 
@@ -561,7 +587,7 @@ const EditProjectModal = ({ project, designerId, onClose, onUpdate }) => {
         description: form.description
       });
 
-      await supabase
+      const { error: projUpdateError } = await supabase
         .from("designer_projects")
         .update({ 
           title: form.title, 
@@ -570,6 +596,18 @@ const EditProjectModal = ({ project, designerId, onClose, onUpdate }) => {
           room_materials: roomMaterials
         })
         .eq("id", project.id);
+
+      if (projUpdateError) throw projUpdateError;
+
+      // Keep materials_used synced across existing room images
+      for (const category of selectedCategories) {
+        const matList = Array.isArray(roomMaterials[category]) ? roomMaterials[category] : [];
+        await supabase
+          .from("project_images")
+          .update({ materials_used: matList })
+          .eq("project_id", project.id)
+          .eq("room_category", category);
+      }
 
       if (imagesToDelete.length > 0) {
         await supabase.from("project_images").delete().in('id', imagesToDelete);
@@ -592,6 +630,7 @@ const EditProjectModal = ({ project, designerId, onClose, onUpdate }) => {
             project_id: project.id, 
             image_url: data.publicUrl, 
             room_category: category,
+            materials_used: Array.isArray(roomMaterials[category]) ? roomMaterials[category] : [],
             is_cover: false 
           });
         }
@@ -984,6 +1023,8 @@ const DesignerDashboard = () => {
   const [uploading, setUploading] = useState(false);
   const [leads, setLeads] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [adminTotalInquiries, setAdminTotalInquiries] = useState(null);
+  const [totalInquiries, setTotalInquiries] = useState(null);
   const [authenticatedRole, setAuthenticatedRole] = useState(null);
   const isAdminOverride = isAdminWorkspaceOverride({
     designerRouteId: adminDesignerId,
@@ -1021,15 +1062,32 @@ const DesignerDashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
         setAuthenticatedRole(null);
+        setDesigner(null);
+        setLeads([]);
+        setProjects([]);
+        setAdminTotalInquiries(null);
+        setTotalInquiries(null);
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return navigate("/login");
         
         let designerData;
+        let adminOverride = false;
         if (adminDesignerId) {
-          const { data: userData } = await supabase.from("users").select("role").eq("id", session.user.id).single();
-          if (userData?.role !== "admin") return navigate("/");
-          setAuthenticatedRole(userData.role);
+          let adminAuthorized = false;
+          if (isAdminAuthorizationRpcEnabled()) {
+            const authorization = await checkServerAdminAuthorization(supabase);
+            adminAuthorized = authorization.authorized;
+          } else {
+            const { data: userData, error: roleError } = await supabase.from("users").select("role").eq("id", session.user.id).single();
+            if (roleError) throw roleError;
+            adminAuthorized = isAdminRoleHint(userData);
+          }
+          if (!adminAuthorized) return navigate("/");
+          adminOverride = true;
+          setAuthenticatedRole("admin");
+          setActiveTab("overview");
           const { data: targetDesigner } = await supabase.from("designers").select("*").eq("id", adminDesignerId).maybeSingle();
           designerData = targetDesigner;
         } else {
@@ -1054,12 +1112,45 @@ const DesignerDashboard = () => {
 
         if (designerData.projects_completed === undefined || designerData.projects_completed === null || !designerData.about_text) setIsProfileIncomplete(true);
 
-        const { data: leadsData } = await supabase
-          .from("connections")
-          .select("*, client:users(full_name, email, phone, city)")
-          .eq("designer_id", designerData.id)
-          .order("updated_at", { ascending: false }); 
-        setLeads(leadsData || []);
+        if (adminOverride) {
+          try {
+            const { data, error: rpcError } = await supabase.rpc(
+              "admin_count_designer_connections",
+              { p_designer_id: designerData.id }
+            );
+            if (rpcError) throw rpcError;
+            const count = toSafeInquiryCount(data);
+            if (count === null) {
+              console.error("Admin inquiry count RPC returned an invalid or unsafe count.");
+            }
+            setAdminTotalInquiries(count);
+          } catch (countError) {
+            console.error(
+              "Unable to count designer inquiries via the admin RPC:",
+              countError?.code || countError?.message || "Unknown RPC error"
+            );
+          }
+        } else {
+          const [leadsResult, countResult] = await Promise.all([
+            supabase
+              .from("connections")
+              .select("*, client:users(full_name, email, phone, city)")
+              .eq("designer_id", designerData.id)
+              .order("updated_at", { ascending: false }),
+            countDesignerInquiries(designerData.id).then(
+              (count) => ({ count }),
+              (error) => ({ error })
+            ),
+          ]);
+          const leadsData = leadsResult.data || [];
+          setLeads(leadsData);
+          if (countResult.error) {
+            console.error("Unable to count designer inquiries:", countResult.error);
+            setTotalInquiries(leadsData.length);
+          } else {
+            setTotalInquiries(countResult.count ?? leadsData.length);
+          }
+        }
 
         const { data: projectsData } = await supabase.from("designer_projects").select(`*, project_images (id, image_url, is_cover, room_category)`).eq("designer_id", designerData.id).order("created_at", { ascending: false });
         setProjects(projectsData || []);
@@ -1074,28 +1165,11 @@ const DesignerDashboard = () => {
 
   const handleRequestRenewal = async () => {
     try {
-      await supabase.from("designers").update({ renewal_requested: true }).eq("id", designer.id);
-      setDesigner({ ...designer, renewal_requested: true });
+      await submitDesignerAccountRequest(supabase, "renewal");
+      setDesigner((current) => ({ ...current, renewal_requested: true }));
       toast.success("Renewal request sent to Admin!");
-    } catch {
-      toast.error("Failed to send request.");
-    }
-  };
-
-  const handleRequestFeature = async () => {
-    let featDaysLeft = 0;
-    if (designer.featured_expiry) {
-      const diff = new Date(designer.featured_expiry) - new Date();
-      featDaysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    }
-    if (designer.featured_status === "featured" && featDaysLeft > 5) return toast.success("You are already featured!");
-    if (designer.featured_status === "requested") return toast.success("Request already sent.");
-    try {
-      await supabase.from("designers").update({ featured_status: "requested" }).eq("id", designer.id);
-      setDesigner({ ...designer, featured_status: "requested" });
-      toast.success("Request sent to Admin! We will contact you soon.");
-    } catch {
-      toast.error("Request failed");
+    } catch (error) {
+      toast.error(error.message || "Failed to send request.");
     }
   };
 
@@ -1116,10 +1190,13 @@ const DesignerDashboard = () => {
         experience_years: parseInt(profileForm.experience_years) || 0, video_link: profileForm.video_link,
         video_link_2: profileForm.video_link_2, designer_type: profileForm.designer_type,
         phone: profileForm.phone, email: profileForm.email, style_tags: profileForm.style_tags, logo_url: finalUrl,
-        is_public: isExpired ? false : profileForm.is_public // Automatically lock to false if expired
       };
-      const { error: updateError } = await supabase.from("designers").update(updatePayload).eq("id", designer.id);
-      if (updateError) throw updateError;
+      if (adminDesignerId) {
+        const { error: updateError } = await supabase.from("designers").update(updatePayload).eq("id", designer.id);
+        if (updateError) throw updateError;
+      } else {
+        await updateOwnDesignerProfile(supabase, designer.user_id, designer.id, updatePayload);
+      }
       setDesigner({ ...designer, ...updatePayload });
       setIsProfileIncomplete(false);
       toast.success("Profile Updated!");
@@ -1133,10 +1210,10 @@ const DesignerDashboard = () => {
   const handleStatusUpdate = createInquiryMutationHandler(isAdminOverride, async (id, status) => {
     try {
       if (status === "delete") {
-        const { error } = await supabase.from("connections").delete().eq("id", id);
-        if (error) throw error;
+        await archiveInquiry(supabase, id);
         setLeads(prev => prev.filter(l => l.id !== id));
-        toast.success("Connection permanently deleted.");
+        setTotalInquiries((current) => Math.max((current ?? leads.length) - 1, 0));
+        toast.success("Inquiry archived successfully.");
       } else {
         const timestamp = new Date().toISOString();
         const { error } = await supabase.from("connections").update({ status, updated_at: timestamp }).eq("id", id);
@@ -1241,8 +1318,10 @@ const DesignerDashboard = () => {
       <div><label className="text-xs font-bold text-gray-500 uppercase">Total Projects Completed</label><input type="number" min="0" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-900 mt-1" value={profileForm.projects_completed} onChange={(e) => setProfileForm({ ...profileForm, projects_completed: e.target.value })} /></div>
       <div><label className="text-xs font-bold text-gray-500 uppercase">About</label><textarea rows="4" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-900 mt-1" value={profileForm.about_text} onChange={(e) => setProfileForm({ ...profileForm, about_text: e.target.value })} /></div>
       <div className="space-y-4">
-        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2"><Video size={14} /> Video Intros (Optional)</label>
-        <input type="url" placeholder="Video Link 1 (Youtube/Vimeo)" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-900" value={profileForm.video_link} onChange={(e) => setProfileForm({ ...profileForm, video_link: e.target.value })} />
+        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+          <Video size={14} /> Official YouTube URL (video_link)
+        </label>
+        <input type="url" placeholder="Official YouTube URL (video_link)" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-900" value={profileForm.video_link} onChange={(e) => setProfileForm({ ...profileForm, video_link: e.target.value })} />
         <input type="url" placeholder="Video Link 2 (Youtube/Vimeo)" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-gray-900" value={profileForm.video_link_2} onChange={(e) => setProfileForm({ ...profileForm, video_link_2: e.target.value })} />
       </div>
       <button type="submit" disabled={uploading} className="w-full bg-brand-accent hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl disabled:opacity-50 shadow-lg">{uploading ? <Loader2 className="animate-spin mx-auto" /> : "Save Changes"}</button>
@@ -1263,7 +1342,7 @@ const DesignerDashboard = () => {
         )}
 
         <nav className={`md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 z-50 flex justify-around p-3 safe-area-bottom shadow-2xl ${adminDesignerId ? 'pb-8' : ''}`}>
-          <button onClick={() => setActiveTab("leads")} className={`flex flex-col items-center gap-1 ${activeTab === "leads" ? "text-brand-accent" : "text-gray-500"}`}><Users size={20} /><span className="text-[10px]">Leads</span></button>
+          <button onClick={() => setActiveTab(isAdminOverride ? "overview" : "leads")} className={`flex flex-col items-center gap-1 ${activeTab === (isAdminOverride ? "overview" : "leads") ? "text-brand-accent" : "text-gray-500"}`}><Users size={20} /><span className="text-[10px]">{isAdminOverride ? "Overview" : "Leads"}</span></button>
           <button onClick={() => setActiveTab("projects")} className={`flex flex-col items-center gap-1 ${activeTab === "projects" ? "text-brand-accent" : "text-gray-500"}`}><ImageIcon size={20} /><span className="text-[10px]">Work</span></button>
           <button onClick={() => setActiveTab("settings")} className={`flex flex-col items-center gap-1 ${activeTab === "settings" ? "text-brand-accent" : "text-gray-500"}`}><Settings size={20} /><span className="text-[10px]">Profile</span></button>
         </nav>
@@ -1282,7 +1361,7 @@ const DesignerDashboard = () => {
             <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded mt-2">Verified Partner</span>
           </div>
           <div className="space-y-2 flex-1">
-            <button onClick={() => setActiveTab("leads")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === "leads" ? "bg-gray-900 text-white shadow-md" : "text-gray-600 hover:bg-gray-100"}`}><Users size={20} /> Inquiries</button>
+            <button onClick={() => setActiveTab(isAdminOverride ? "overview" : "leads")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === (isAdminOverride ? "overview" : "leads") ? "bg-gray-900 text-white shadow-md" : "text-gray-600 hover:bg-gray-100"}`}><Users size={20} /> {isAdminOverride ? "Overview" : "Inquiries"}</button>
             <button onClick={() => setActiveTab("projects")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === "projects" ? "bg-gray-900 text-white shadow-md" : "text-gray-600 hover:bg-gray-100"}`}><ImageIcon size={20} /> Portfolio</button>
             <button onClick={() => setActiveTab("settings")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === "settings" ? "bg-gray-900 text-white shadow-md" : "text-gray-600 hover:bg-gray-100"}`}><Settings size={20} /> Edit Profile</button>
           </div>
@@ -1292,7 +1371,7 @@ const DesignerDashboard = () => {
         <main className={`flex-1 p-4 md:p-10 mt-16 md:mt-0 mb-20 md:mb-0 overflow-y-auto h-[calc(100vh-140px)] md:h-screen ${adminDesignerId ? 'md:pt-16' : ''}`}>
           
           {/* --- 7-DAY EXPIRY WARNING BANNER --- */}
-          {showWarningBanner && (
+          {showWarningBanner && !isAdminOverride && (
             <div className="max-w-6xl mx-auto mb-6 bg-amber-50 border border-amber-200/80 text-amber-900 px-5 py-3.5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm transition-all animate-in fade-in">
               <div className="flex items-center gap-3">
                 <AlertTriangle className="text-amber-500 shrink-0" size={20} />
@@ -1302,19 +1381,37 @@ const DesignerDashboard = () => {
               </div>
               <button
                 onClick={handleRequestRenewal}
+                disabled={!isSecureDesignerRequestRpcEnabled()}
+                title={!isSecureDesignerRequestRpcEnabled() ? "Secure renewal request workflow is not deployed yet." : undefined}
                 className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all shadow-sm shrink-0 uppercase tracking-wider active:scale-95"
               >
-                Renew Now
+                {isSecureDesignerRequestRpcEnabled() ? "Renew Now" : "Renewal request unavailable"}
               </button>
             </div>
           )}
-          {activeTab === "leads" && (
+          {isAdminOverride && activeTab === "overview" && (
+            <section aria-label="Designer workspace overview" className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-6">Workspace Overview</h1>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Total Inquiries</p>
+                  <p className="text-2xl font-extrabold text-gray-900">{adminTotalInquiries ?? "Unavailable"}</p>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Profile Views</p>
+                  <p className="text-2xl font-extrabold text-brand-accent">{designer?.profile_views ?? "Unavailable"}</p>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {!isAdminOverride && activeTab === "leads" && (
             <div className="max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* --- TOP STATISTICS CARDS (Real Supabase Data) --- */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Total Inquiries</p>
-                  <p className="text-2xl font-extrabold text-gray-900">{leads?.length || 0}</p>
+                  <p className="text-2xl font-extrabold text-gray-900">{totalInquiries ?? leads?.length ?? 0}</p>
                 </div>
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Active Projects</p>

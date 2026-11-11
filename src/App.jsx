@@ -4,10 +4,12 @@ import Footer from "./components/Footer";
 import ScrollToTop from "./components/ScrollToTop";
 import { Toaster } from "react-hot-toast";
 
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Home from "./pages/Home";
 import Designers from "./pages/Designers";
 import DesignerProfile from "./pages/DesignerProfile";
+import CompareDesigners from "./pages/CompareDesigners";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Connect from "./pages/Connect";
@@ -17,6 +19,7 @@ import TermsOfServices from "./pages/TermsOfServices";
 import Privacy from "./pages/Privacy";
 import UpdatePassword from "./pages/UpdatePassword";
 import NotFound from "./pages/NotFound";
+import { supabase } from "./supabaseClient";
 
 import {
   RequireAuth,
@@ -37,6 +40,45 @@ const PageLoader = () => (
 );
 
 function App() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && typeof supabase?.auth?.onAuthStateChange === "function") {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        const isExpired = session?.expires_at ? session.expires_at < Date.now() / 1000 : false;
+        const isInvalid = !session || isExpired;
+
+        if (
+          event === "SIGNED_OUT" ||
+          (event === "TOKEN_REFRESHED" && isInvalid) ||
+          (event === "USER_UPDATED" && isInvalid)
+        ) {
+          queryClient.setQueryData(['auth', 'user'], null);
+          queryClient.setQueryData(['auth', 'session'], null);
+          queryClient.removeQueries({ queryKey: ['auth'] });
+          queryClient.removeQueries({ queryKey: ['users'] });
+          queryClient.clear();
+          try {
+            if (event !== "SIGNED_OUT") {
+              await supabase.auth.signOut();
+            }
+          } catch {
+            // ignore
+          }
+          localStorage.clear();
+          sessionStorage.clear();
+        } else if (event === "SIGNED_IN" && session?.user) {
+          queryClient.setQueryData(['auth', 'session'], session);
+          queryClient.setQueryData(['auth', 'user'], session.user);
+        }
+      });
+
+      return () => {
+        subscription?.unsubscribe?.();
+      };
+    }
+  }, [queryClient]);
+
   return (
     <Router>
       <ScrollToTop />
@@ -52,13 +94,14 @@ function App() {
         }}
       />
       <Navbar />
-      <div className="pt-0 md:pt-20 overflow-x-hidden min-h-screen">
+      <div className="overflow-x-hidden min-h-screen">
         <OnboardingGuard>
           <Routes>
             {/* Public */}
             <Route path="/" element={<Home />} />
             <Route path="/designers" element={<Designers />} />
             <Route path="/designers/:id" element={<DesignerProfile />} />
+            <Route path="/compare" element={<CompareDesigners />} />
             <Route path="/aboutcontact" element={<AboutContact />} />
             <Route path="/terms" element={<TermsOfServices />} />
             <Route path="/privacy" element={<Privacy />} />
@@ -73,6 +116,7 @@ function App() {
             {/* Logged In Users */}
             <Route element={<RequireAuth />}>
               <Route path="/connect" element={<Connect />} />
+              <Route path="/dashboard" element={<Connect />} />
               <Route path="/profile" element={<UserProfile />} />
             </Route>
 

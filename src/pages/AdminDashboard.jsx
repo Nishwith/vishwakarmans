@@ -38,16 +38,26 @@ import {
   Globe,
   CalendarClock,
   ShieldCheck,
-  ExternalLink
+  ExternalLink,
+  EyeOff,
+  Play,
+  Download
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { signOut } from "../services/authService";
+import { getYouTubeEmbedUrl } from "../utils/publicDesignerVideo";
 import {
   onboardDesignerApplicationWithSuccess,
   rejectDesignerApplication,
   verifyDesignerProfile,
 } from "../services/designerApplicationAdminService";
+import {
+  updateContactMessageStatusWithSecureRpc,
+  deleteContactMessageWithSecureRpc,
+} from "../services/adminOperationsService";
+import { resolveAdminAuthorization } from "../services/phase1aAuthorizationService";
+import { setDesignerPublicVisibility } from "../services/designerVisibilityAdminService";
 
 // --- SUB-COMPONENT: FEATURE REQUEST EVALUATION MODAL ---
 const FeatureRequestModal = ({ designer, onClose, onApprove, onReject }) => {
@@ -66,13 +76,25 @@ const FeatureRequestModal = ({ designer, onClose, onApprove, onReject }) => {
       setLoading(false);
     };
     fetchReviews();
-  }, [designer?.id]);
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [designer?.id, onClose]);
 
   if (!designer) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-white border border-gray-200 w-full max-w-3xl rounded-3xl shadow-2xl relative animate-in fade-in zoom-in duration-200 my-auto flex flex-col max-h-[90vh]">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white border border-gray-200 w-full max-w-3xl rounded-3xl shadow-2xl relative animate-in fade-in zoom-in duration-200 my-auto flex flex-col max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-5 md:p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white rounded-t-3xl z-10">
           <div className="flex items-center gap-3">
@@ -101,29 +123,29 @@ const FeatureRequestModal = ({ designer, onClose, onApprove, onReject }) => {
           {/* Designer Card Summary */}
           <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 flex flex-col sm:flex-row gap-5 items-center sm:items-start text-center sm:text-left">
             <div className="w-20 h-20 rounded-2xl bg-white border border-gray-300 overflow-hidden shrink-0 shadow-sm">
-              {designer.logo_url ? (
+              {designer?.logo_url ? (
                 <img
                   src={designer.logo_url}
-                  alt={designer.name}
+                  alt={designer?.name || "Logo"}
                   className="w-full h-full object-cover"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-gray-400">
-                  {designer.name?.[0]}
+                  {designer?.name?.[0] || "?"}
                 </div>
               )}
             </div>
             <div className="flex-1 space-y-2">
-              <h3 className="text-xl font-bold text-gray-900">{designer.name}</h3>
+              <h3 className="text-xl font-bold text-gray-900">{designer?.name || "Unnamed Designer"}</h3>
               <div className="flex flex-wrap justify-center sm:justify-start gap-3 text-xs text-gray-600">
                 <span className="flex items-center gap-1 font-medium">
-                  <MapPin size={14} className="text-gray-400" /> {designer.city || "N/A"}
+                  <MapPin size={14} className="text-gray-400" /> {designer?.city || "N/A"}
                 </span>
                 <span className="flex items-center gap-1 font-medium">
-                  <Phone size={14} className="text-green-500" /> {designer.phone || "N/A"}
+                  <Phone size={14} className="text-green-500" /> {designer?.phone || "N/A"}
                 </span>
                 <span className="flex items-center gap-1 font-medium break-all">
-                  <Mail size={14} className="text-blue-500" /> {designer.email || "N/A"}
+                  <Mail size={14} className="text-blue-500" /> {designer?.email || "N/A"}
                 </span>
               </div>
             </div>
@@ -132,7 +154,7 @@ const FeatureRequestModal = ({ designer, onClose, onApprove, onReject }) => {
           {/* Reviews Section */}
           <div className="space-y-4">
             <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-              <CheckSquare size={16} className="text-orange-500" /> Client Reviews & Verification ({reviews.length})
+              <CheckSquare size={16} className="text-orange-500" /> Client Reviews & Verification ({(reviews || []).length})
             </h4>
 
             {loading ? (
@@ -219,9 +241,23 @@ const ReviewModal = ({ designer, onClose, onApprove, onReject }) => {
   if (!designer) return null;
   const projectCount = designer.designer_projects?.[0]?.count || 0;
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-white border border-gray-200 w-full max-w-2xl rounded-2xl shadow-2xl relative animate-in fade-in zoom-in duration-200 my-auto flex flex-col max-h-[90vh]">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white border border-gray-200 w-full max-w-2xl rounded-2xl shadow-2xl relative animate-in fade-in zoom-in duration-200 my-auto flex flex-col max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="p-5 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white rounded-t-2xl z-10">
           <h2 className="text-xl md:text-2xl font-bold text-gray-900 flex items-center gap-2">
             <FileText className="text-blue-500" /> Review Profile
@@ -237,30 +273,30 @@ const ReviewModal = ({ designer, onClose, onApprove, onReject }) => {
         <div className="p-5 md:p-8 overflow-y-auto space-y-6">
           <div className="flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left">
             <div className="w-24 h-24 rounded-2xl bg-gray-50 border-2 border-gray-300 overflow-hidden shrink-0 mx-auto md:mx-0 shadow-inner">
-              {designer.logo_url ? (
+              {designer?.logo_url ? (
                 <img
                   src={designer.logo_url}
-                  alt="logo"
+                  alt={designer?.name || "logo"}
                   className="w-full h-full object-cover"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center font-bold text-3xl text-gray-400 bg-gray-100">
-                  {designer.name?.[0]}
+                  {designer?.name?.[0] || "?"}
                 </div>
               )}
             </div>
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                {designer.name}
+                {designer?.name || "Unnamed Designer"}
               </h1>
               <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-3">
                 <span className="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full text-xs font-bold uppercase tracking-wider shadow-sm">
-                  {designer.designer_type}
+                  {designer?.designer_type || "Designer"}
                 </span>
                 <span className="px-3 py-1.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">
-                  <MapPin size={14} className="text-gray-500" /> {designer.city}
+                  <MapPin size={14} className="text-gray-500" /> {designer?.city || "Unknown City"}
                 </span>
-                {designer.experience_years > 0 && (
+                {(designer?.experience_years || 0) > 0 && (
                   <span className="px-3 py-1.5 bg-gray-100 text-gray-700 border border-gray-200 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">
                     <Clock size={14} className="text-gray-500" /> {designer.experience_years} Years Exp
                   </span>
@@ -270,29 +306,13 @@ const ReviewModal = ({ designer, onClose, onApprove, onReject }) => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 flex items-center justify-between shadow-sm">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-orange-100 rounded-xl text-orange-600 border border-orange-200">
-                  <ImageIcon size={24} />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-0.5">
-                    Portfolio
-                  </p>
-                  <p className="text-lg font-bold text-gray-900">
-                    {projectCount} Projects Uploaded
-                  </p>
-                </div>
-              </div>
-            </div>
-            
             <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 space-y-3 shadow-sm">
               <div className="flex flex-col gap-1 text-sm">
                 <span className="text-gray-500 font-bold uppercase text-[10px] tracking-wider">
                   Email
                 </span>
                 <span className="text-gray-900 font-mono select-all break-all font-medium">
-                  {designer.email}
+                  {designer?.email || "N/A"}
                 </span>
               </div>
               <div className="flex flex-col gap-1 text-sm">
@@ -300,10 +320,10 @@ const ReviewModal = ({ designer, onClose, onApprove, onReject }) => {
                   Phone
                 </span>
                 <span className="text-gray-900 font-mono select-all font-medium">
-                  {designer.phone}
+                  {designer?.phone || "N/A"}
                 </span>
               </div>
-              {designer.website_url && (
+              {designer?.website_url && (
                 <div className="flex flex-col gap-1 text-sm pt-2 border-t border-gray-200">
                   <span className="text-gray-500 font-bold uppercase text-[10px] tracking-wider">
                     Website
@@ -319,69 +339,89 @@ const ReviewModal = ({ designer, onClose, onApprove, onReject }) => {
                 </div>
               )}
             </div>
+
+            <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 space-y-3 shadow-sm">
+              <div className="flex flex-col gap-1 text-sm">
+                <span className="text-gray-500 font-bold uppercase text-[10px] tracking-wider flex items-center gap-1">
+                  <MapPin size={12} className="text-orange-500" /> Service Area (Lat / Lng)
+                </span>
+                <span className="text-gray-900 font-medium text-sm font-mono">
+                  {designer?.service_area_lat && designer?.service_area_lng
+                    ? `Lat: ${designer.service_area_lat}, Lng: ${designer.service_area_lng}`
+                    : designer?.location || (designer?.city ? `Covering ${designer.city} & surrounding areas` : "Not specified")}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1 text-sm">
+                <span className="text-gray-500 font-bold uppercase text-[10px] tracking-wider">
+                  Portfolio Projects
+                </span>
+                <span className="text-gray-900 font-bold text-sm">
+                  {projectCount} Projects Uploaded
+                </span>
+              </div>
+            </div>
           </div>
 
-          {((designer.style_tags && designer.style_tags.length > 0) ||
-            designer.video_link ||
-            designer.video_link_2) && (
-            <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 space-y-4 shadow-sm">
-              {designer.style_tags && designer.style_tags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {designer.style_tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="text-xs bg-white border border-gray-200 text-gray-700 font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm"
-                    >
-                      <Tag size={12} className="text-gray-400" /> {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-              
-              {(designer.video_link || designer.video_link_2) && (
-                <div className="flex flex-col gap-2 pt-2">
-                  {designer.video_link && (
-                    <a
-                      href={designer.video_link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                    >
-                      <Video size={16} /> View Video Intro 1
-                    </a>
-                  )}
-                  {designer.video_link_2 && (
-                    <a
-                      href={designer.video_link_2}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                    >
-                      <Video size={16} /> View Video Intro 2
-                    </a>
-                  )}
-                </div>
-              )}
+          {/* About / Bio */}
+          <div className="space-y-2">
+            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider border-b border-gray-200 pb-2">
+              About
+            </h3>
+            <p className="text-gray-700 whitespace-pre-wrap leading-relaxed text-sm md:text-base bg-gray-50 p-4 rounded-xl border border-gray-100">
+              {designer?.about_text || designer?.bio || "No description provided."}
+            </p>
+          </div>
+
+          {/* Style Tags */}
+          {designer?.style_tags && designer.style_tags.length > 0 && (
+            <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 space-y-2 shadow-sm">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-1">
+                Style Tags
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {designer.style_tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-xs bg-white border border-gray-200 text-gray-700 font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Tag size={12} className="text-gray-400" /> {tag}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider border-b border-gray-200 pb-2 mb-3">
-                Short Bio
-              </h3>
-              <p className="text-gray-600 italic bg-gray-50 p-4 rounded-xl border border-gray-100">
-                "{designer.bio || "No bio provided"}"
-              </p>
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider border-b border-gray-200 pb-2 mb-3">
-                About The Firm
-              </h3>
-              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed text-sm md:text-base">
-                {designer.about_text || "No description provided."}
-              </p>
-            </div>
+          {/* Video Showcase Review */}
+          <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 space-y-3 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+              <Video size={16} className="text-orange-500" /> Submitted Video Links
+            </h3>
+            {designer.video_link_1 || designer.video_link || designer.video_link_2 ? (
+              <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                {(designer.video_link_1 || designer.video_link) ? (
+                  <a
+                    href={designer.video_link_1 || designer.video_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-blue-600 hover:text-blue-800 hover:border-blue-300 shadow-sm transition-all"
+                  >
+                    <ExternalLink size={16} /> View Video 1
+                  </a>
+                ) : null}
+                {designer.video_link_2 ? (
+                  <a
+                    href={designer.video_link_2}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-blue-600 hover:text-blue-800 hover:border-blue-300 shadow-sm transition-all"
+                  >
+                    <ExternalLink size={16} /> View Video 2
+                  </a>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 italic">No video links submitted</p>
+            )}
           </div>
         </div>
 
@@ -409,14 +449,14 @@ const ReviewModal = ({ designer, onClose, onApprove, onReject }) => {
 const ActiveDesignerCard = ({
   d,
   navigate,
-  handleDeleteDesigner,
+  handleSetDesignerVisibility,
 }) => {
   const [showContact, setShowContact] = useState(false);
 
   // --- FEATURED BOOST STATUS ---
   let featDaysLeft = null;
   let isFeatured = false;
-  if (d.featured_status === "featured" && d.featured_expiry) {
+  if (d?.featured_status === "featured" && d?.featured_expiry) {
     const diff = new Date(d.featured_expiry) - new Date();
     featDaysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
     if (featDaysLeft >= 0) isFeatured = true;
@@ -424,10 +464,10 @@ const ActiveDesignerCard = ({
 
   // --- SUBSCRIPTION STATUS ---
   let subDaysLeft = -1;
-  if (d.subscription_end) {
+  if (d?.subscription_end) {
     subDaysLeft = Math.ceil((new Date(d.subscription_end) - new Date()) / (1000 * 60 * 60 * 24));
   }
-  const isSubExpired = subDaysLeft < 0 || !d.subscription_end;
+  const isSubExpired = subDaysLeft < 0 || !d?.subscription_end;
   const isSubExpiringSoon = !isSubExpired && subDaysLeft < 7;
 
   return (
@@ -439,16 +479,16 @@ const ActiveDesignerCard = ({
           ? "border-yellow-200 bg-yellow-50/10"
           : "border-gray-200"
       }`}
-      onClick={() => navigate(`/designers/${d.id}`)}
+      onClick={() => d?.id && navigate(`/designers/${d.id}`)}
     >
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex gap-4 items-center w-full">
           <div className="w-12 h-12 rounded-full bg-gray-50 border-2 border-gray-300 overflow-hidden shrink-0 relative">
-            {d.logo_url ? (
+            {d?.logo_url ? (
               <img src={d.logo_url} alt="logo" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-slate-500">
-                {d.name?.[0]}
+                {d?.name?.[0] || "?"}
               </div>
             )}
             {isFeatured && (
@@ -459,13 +499,18 @@ const ActiveDesignerCard = ({
           </div>
           <div>
             <h3 className="font-bold text-gray-900 flex items-center gap-2">
-              {d.name}
+              {d?.name || "Unnamed Designer"}
             </h3>
             
             <div className="flex flex-wrap gap-2 text-xs text-gray-500 mt-1.5 items-center">
-              <span>{d.city}</span>
+              <span>{d?.city || "Unknown City"}</span>
               <span>•</span>
-              <span className="text-gray-900 font-medium">{d.projects_completed || d.designer_projects?.[0]?.count || 0} Projects</span>
+              {!d?.is_public && (
+                <span className="px-2.5 py-0.5 rounded-full font-bold border bg-gray-100 text-gray-700 border-gray-300 text-xs">
+                  Hidden from public
+                </span>
+              )}
+              <span className="text-gray-900 font-medium">{d?.projects_completed || d?.designer_projects?.[0]?.count || 0} Projects</span>
               <span>•</span>
               
               {/* READ-ONLY SUBSCRIPTION STATUS BADGE */}
@@ -492,8 +537,19 @@ const ActiveDesignerCard = ({
 
               {/* READ-ONLY PRIORITY SCORE METRIC BADGE */}
               <span className="px-2.5 py-0.5 rounded-full font-bold border bg-gray-100 text-gray-700 border-gray-200 text-xs inline-flex items-center gap-1 font-mono">
-                <Zap size={12} className="text-brand-accent" /> Priority: {d.priority_score || 0}
+                <Zap size={12} className="text-brand-accent" /> Priority: {d?.priority_score || 0}
               </span>
+
+              {/* VIDEO STATUS BADGE */}
+              {d?.videos_approved ? (
+                <span className="px-2.5 py-0.5 rounded-full font-bold border bg-emerald-50 text-emerald-700 border-emerald-200 text-xs inline-flex items-center gap-1">
+                  <CheckCircle size={12} /> Videos Approved
+                </span>
+              ) : (d?.video_link_1 || d?.video_link || d?.video_link_2) ? (
+                <span className="px-2.5 py-0.5 rounded-full font-bold border bg-amber-50 text-amber-700 border-amber-200 text-xs inline-flex items-center gap-1">
+                  <Clock size={12} /> Videos Pending
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
@@ -505,9 +561,9 @@ const ActiveDesignerCard = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/admin/manage-designer/${d.id}`);
+              if (d?.id) navigate(`/admin/manage-designer/${d.id}`);
             }}
-            className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors shadow-sm"
+            className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
           >
             <ExternalLink size={16} /> Manage Workspace
           </button>
@@ -523,11 +579,15 @@ const ActiveDesignerCard = ({
           </button>
 
           <button
-            onClick={() => handleDeleteDesigner(d.id)}
-            className="w-auto text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-xl border border-red-200 hover:border-red-500 transition-colors flex items-center justify-center gap-2 shadow-sm"
-            title="Delete Designer"
+            onClick={() => d?.id && handleSetDesignerVisibility(d.id, !d?.is_public)}
+            className={`w-auto px-4 py-2 rounded-xl border transition-colors flex items-center justify-center gap-2 shadow-sm ${
+              d?.is_public
+                ? "text-amber-700 hover:bg-amber-600 hover:text-white border-amber-200 hover:border-amber-600"
+                : "text-green-700 hover:bg-green-600 hover:text-white border-green-200 hover:border-green-600"
+            }`}
+            title={d?.is_public ? "Hide designer from public discovery" : "Restore public visibility"}
           >
-            <Trash2 size={18} />
+            {d?.is_public ? <><EyeOff size={16} /> Deactivate</> : <><Eye size={16} /> Reactivate</>}
           </button>
         </div>
       </div>
@@ -538,13 +598,13 @@ const ActiveDesignerCard = ({
             <div onClick={(e) => e.stopPropagation()} className="cursor-text min-w-0">
               <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Email</p>
               <div className="flex items-center gap-2 text-sm text-gray-900 select-all break-all">
-                <Mail size={14} className="text-blue-500 shrink-0" /> {d.email}
+                <Mail size={14} className="text-blue-500 shrink-0" /> {d?.email || "N/A"}
               </div>
             </div>
             <div onClick={(e) => e.stopPropagation()} className="cursor-text">
               <p className="text-[10px] uppercase font-bold text-gray-500 mb-1">Phone</p>
               <div className="flex items-center gap-2 text-sm text-gray-900 select-all">
-                <Phone size={14} className="text-green-500 shrink-0" /> {d.phone}
+                <Phone size={14} className="text-green-500 shrink-0" /> {d?.phone || "N/A"}
               </div>
             </div>
           </div>
@@ -556,17 +616,19 @@ const ActiveDesignerCard = ({
 
 // --- COMPONENT: OVERVIEW TAB ---
 const OverviewTab = ({
-  stats,
-  requested,
-  featured,
+  stats = {},
+  requested = [],
+  featured = [],
   onUpdatePriority,
   onToggleFeature,
   onEvaluateRequest,
 }) => {
   const [priorityMap, setPriorityMap] = useState(() => {
     const initial = {};
-    if (featured) {
-      featured.forEach((d) => (initial[d.id] = d.priority_score || 0));
+    if (featured && Array.isArray(featured)) {
+      featured.forEach((d) => {
+        if (d?.id) initial[d.id] = d?.priority_score || 0;
+      });
     }
     return initial;
   });
@@ -577,25 +639,29 @@ const OverviewTab = ({
   const handleSavePriority = (id) => onUpdatePriority(id, priorityMap[id]);
   const getDaysLeft = (dateString) => {
     if (!dateString) return -1;
-    return Math.ceil(
-      (new Date(dateString) - new Date()) / (1000 * 60 * 60 * 24)
-    );
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return -1;
+    return Math.ceil((date - new Date()) / (1000 * 60 * 60 * 24));
   };
   const confirmRemoveFeature = (id) => {
     if (window.confirm("Remove Featured Status?"))
       onToggleFeature(id, "none", 0, 0);
   };
 
-  const filteredRequested = (requested || []).filter(
-    (d) =>
-      d.name.toLowerCase().includes(reqSearch.toLowerCase()) ||
-      d.email?.toLowerCase().includes(reqSearch.toLowerCase())
-  );
-  const filteredFeatured = (featured || []).filter(
-    (d) =>
-      d.name.toLowerCase().includes(featSearch.toLowerCase()) ||
-      d.email?.toLowerCase().includes(featSearch.toLowerCase())
-  );
+  const filteredRequested = (requested || []).filter((d) => {
+    if (!d) return false;
+    const search = (reqSearch || "").toLowerCase();
+    const name = (d.name || "").toLowerCase();
+    const email = (d.email || "").toLowerCase();
+    return !search || name.includes(search) || email.includes(search);
+  });
+  const filteredFeatured = (featured || []).filter((d) => {
+    if (!d) return false;
+    const search = (featSearch || "").toLowerCase();
+    const name = (d.name || "").toLowerCase();
+    const email = (d.email || "").toLowerCase();
+    return !search || name.includes(search) || email.includes(search);
+  });
 
   return (
     <div className="space-y-8 animate-in fade-in">
@@ -604,28 +670,28 @@ const OverviewTab = ({
         {[
           {
             label: "Total Clients",
-            count: stats.totalClients || 0,
+            count: stats?.totalClients || 0,
             icon: Users,
             color: "text-blue-500",
             bg: "bg-blue-500/10",
           },
           {
             label: "Total Designers",
-            count: stats.totalDesigners || 0,
+            count: stats?.totalDesigners || 0,
             icon: Briefcase,
             color: "text-orange-500",
             bg: "bg-orange-500/10",
           },
           {
             label: "Verified Designers",
-            count: stats.verifiedDesigners || 0,
+            count: stats?.verifiedDesigners || 0,
             icon: CheckCircle,
             color: "text-green-500",
             bg: "bg-green-500/10",
           },
           {
             label: "Inbox Messages",
-            count: stats.messages || 0,
+            count: stats?.messages || 0,
             icon: MessageSquare,
             color: "text-purple-500",
             bg: "bg-purple-500/10",
@@ -681,21 +747,21 @@ const OverviewTab = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredRequested.map((d) => (
               <div
-                key={d.id}
+                key={d?.id}
                 className="bg-gray-50/70 border border-gray-200 p-4 rounded-xl flex items-center justify-between gap-4 hover:border-gray-300 transition-all shadow-sm"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-12 h-12 rounded-xl bg-white border border-gray-200 overflow-hidden shrink-0 shadow-inner flex items-center justify-center">
-                    {d.logo_url ? (
-                      <img src={d.logo_url} alt={d.name} className="w-full h-full object-cover" />
+                    {d?.logo_url ? (
+                      <img src={d.logo_url} alt={d?.name || "Logo"} className="w-full h-full object-cover" />
                     ) : (
-                      <span className="font-bold text-gray-400 text-lg">{d.name?.[0]}</span>
+                      <span className="font-bold text-gray-400 text-lg">{d?.name?.[0] || "?"}</span>
                     )}
                   </div>
                   <div className="min-w-0">
-                    <h4 className="font-bold text-gray-900 text-sm truncate">{d.name}</h4>
+                    <h4 className="font-bold text-gray-900 text-sm truncate">{d?.name || "Unnamed Designer"}</h4>
                     <p className="text-xs text-gray-500 flex items-center gap-1">
-                      <MapPin size={12} /> {d.city || "N/A"}
+                      <MapPin size={12} /> {d?.city || "N/A"}
                     </p>
                   </div>
                 </div>
@@ -745,30 +811,36 @@ const OverviewTab = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700">
-                {filteredFeatured.length === 0 ? (
+                {(filteredFeatured || []).length === 0 ? (
                   <tr>
                     <td colSpan="4" className="p-8 text-center">
                       No active featured designers.
                     </td>
                   </tr>
                 ) : (
-                  filteredFeatured.map((d) => {
-                    const daysLeft = getDaysLeft(d.featured_expiry);
+                  (filteredFeatured || []).map((d) => {
+                    const daysLeft = getDaysLeft(d?.featured_expiry);
                     return (
-                      <tr key={d.id} className="hover:bg-gray-100/30">
+                      <tr key={d?.id} className="hover:bg-gray-100/30">
                         <td className="p-3 pl-4">
                           <div className="flex items-center gap-3">
-                            <img
-                              src={d.logo_url}
-                              className="w-8 h-8 rounded-full bg-gray-100 object-cover"
-                              alt=""
-                            />
+                            {d?.logo_url ? (
+                              <img
+                                src={d.logo_url}
+                                className="w-8 h-8 rounded-full bg-gray-100 object-cover"
+                                alt=""
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500">
+                                {d?.name?.[0] || "?"}
+                              </div>
+                            )}
                             <div>
                               <p className="text-gray-900 font-bold text-sm">
-                                {d.name}
+                                {d?.name || "Unnamed"}
                               </p>
                               <p className="text-[10px] text-gray-500">
-                                {d.phone}
+                                {d?.phone || "No phone"}
                               </p>
                             </div>
                           </div>
@@ -791,25 +863,25 @@ const OverviewTab = ({
                           <input
                             type="number"
                             className="w-12 bg-gray-50 border border-gray-300 rounded p-1 text-center text-gray-900 focus:border-yellow-500 outline-none font-mono text-xs"
-                            value={priorityMap[d.id] ?? 0}
+                            value={priorityMap[d?.id] ?? 0}
                             onChange={(e) =>
                               setPriorityMap({
                                 ...priorityMap,
-                                [d.id]: parseInt(e.target.value),
+                                [d?.id]: parseInt(e.target.value) || 0,
                               })
                             }
                           />
                         </td>
                         <td className="p-3 text-right pr-4 flex justify-end gap-2">
                           <button
-                            onClick={() => handleSavePriority(d.id)}
+                            onClick={() => d?.id && handleSavePriority(d.id)}
                             className="p-1.5 bg-blue-500/10 text-blue-400 hover:bg-blue-600 hover:text-gray-900 rounded transition-colors"
                             title="Save Rank"
                           >
                             <Save size={14} />
                           </button>
                           <button
-                            onClick={() => confirmRemoveFeature(d.id)}
+                            onClick={() => d?.id && confirmRemoveFeature(d.id)}
                             className="p-1.5 bg-red-500/10 text-red-400 hover:bg-red-600 hover:text-white rounded transition-colors"
                             title="Remove Feature"
                           >
@@ -828,25 +900,67 @@ const OverviewTab = ({
   );
 };
 
-const AdminOnboardDesigner = () => {
+const AdminOnboardDesigner = ({ onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [logoFile, setLogoFile] = useState(null);
+  const [newTag, setNewTag] = useState("");
   
   const [form, setForm] = useState({
-    email: "", password: "vishavakarmans@designer", fullName: "", orgName: "",  
-    city: "Hyderabad", phone: "",
-    designer_type: "interior", experience_years: 0, projects_completed: 0, about_text: "",
-    is_verified: true, featured_status: "standard" 
+    email: "",
+    password: "vishavakarmans@designer",
+    fullName: "",
+    orgName: "",  
+    city: "Hyderabad",
+    phone: "",
+    designer_type: "interior",
+    experience_years: 0,
+    projects_completed: 0,
+    service_area_lat: "",
+    service_area_lng: "",
+    about_text: "",
+    style_tags: [],
+    video_link: "",
+    video_link_2: "",
+    is_verified: true,
   });
+
+  const addTag = () => {
+    const trimmed = newTag.trim();
+    if (trimmed && !form.style_tags.includes(trimmed)) {
+      setForm((prev) => ({ ...prev, style_tags: [...prev.style_tags, trimmed] }));
+      setNewTag("");
+    }
+  };
+
+  const removeTag = (tag) => {
+    setForm((prev) => ({
+      ...prev,
+      style_tags: prev.style_tags.filter((t) => t !== tag),
+    }));
+  };
+
+  const handleTagKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addTag();
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const expYears = parseInt(form.experience_years) || 0;
+    if (expYears < 0) {
+      toast.error("Experience cannot be a negative value.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       let logoUrl = "";
       if (logoFile) {
-        const fileExt = logoFile.name.split('.').pop();
+        const fileExt = logoFile.name.split('.').pop() || 'png';
         const fileName = `logos/admin_upload_${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage.from("portfolio").upload(fileName, logoFile);
         if (uploadError) throw uploadError;
@@ -854,34 +968,107 @@ const AdminOnboardDesigner = () => {
       }
 
       const payload = {
-        email: form.email, password: form.password, full_name: form.fullName, 
-        org_name: form.orgName, city: form.city, phone: form.phone, 
-        designer_type: form.designer_type, experience_years: parseInt(form.experience_years),
+        email: form.email.trim(),
+        password: form.password,
+        name: form.orgName.trim() || form.fullName.trim(),
+        full_name: form.fullName.trim(), 
+        org_name: form.orgName.trim(),
+        city: form.city,
+        phone: form.phone.trim(), 
+        designer_type: form.designer_type,
+        experience_years: expYears,
         projects_completed: parseInt(form.projects_completed || 0),
-        about_text: form.about_text, logo_url: logoUrl,
-        is_verified: form.is_verified, featured_status: form.featured_status
+        service_area_lat: form.service_area_lat,
+        service_area_lng: form.service_area_lng,
+        about_text: form.about_text.trim(),
+        style_tags: form.style_tags,
+        video_link_1: form.video_link.trim() || null,
+        video_link_2: form.video_link_2.trim() || null,
+        video_link: form.video_link.trim() || null,
+        logo_url: logoUrl,
+        is_verified: true,
+        featured_status: "standard",
       };
 
       const { data, error } = await supabase.functions.invoke('admin-onboard', { body: payload });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        let serverErrorMsg = error.message;
+        if (error.context) {
+          try {
+            const errorBody = await error.context.json();
+            if (errorBody?.error) {
+              serverErrorMsg = errorBody.error;
+            } else if (errorBody?.message) {
+              serverErrorMsg = errorBody.message;
+            }
+          } catch {
+            // non-json body in context
+          }
+        }
+        throw new Error(serverErrorMsg);
+      }
+      if (data?.error) {
+        throw new Error(data.error);
+      }
 
-      // --- VIP Onboarding: Enforce Pending Payment state ---
-      await supabase.from("designers").update({
+      // Map additional fields to designers table & users location
+      const designerUpdates = {
         is_subscription_active: false,
         subscription_end: null,
-        is_public: false
-      }).eq("email", form.email);
-      // -----------------------------------------------------
+        is_public: false,
+        about_text: form.about_text.trim(),
+        style_tags: form.style_tags,
+        video_link: form.video_link.trim() || null,
+        video_link_2: form.video_link_2.trim() || null,
+      };
+
+      const latNum = parseFloat(form.service_area_lat);
+      const lngNum = parseFloat(form.service_area_lng);
+      if (!isNaN(latNum) && !isNaN(lngNum)) {
+        designerUpdates.location_coords = `POINT(${lngNum} ${latNum})`;
+      }
+
+      const { error: dUpdateError } = await supabase
+        .from("designers")
+        .update(designerUpdates)
+        .eq("email", form.email.trim());
+
+      if (dUpdateError) {
+        console.warn("Could not update extended designer fields:", dUpdateError);
+      }
+
+      // If user_id is returned and lat/lng provided, update users table location
+      if (data?.user_id && !isNaN(latNum) && !isNaN(lngNum)) {
+        await supabase
+          .from("users")
+          .update({ location: `POINT(${lngNum} ${latNum})` })
+          .eq("id", data.user_id);
+      }
 
       toast.success("VIP Account created with Pending Payment status!");
       setForm({
-        email: "", password: "vishavakarmans@designer", fullName: "", orgName: "", 
-        city: "Hyderabad", phone: "", 
-        designer_type: "interior", experience_years: 0, projects_completed: 0, about_text: "",
-        is_verified: true, featured_status: "standard"
+        email: "",
+        password: "vishavakarmans@designer",
+        fullName: "",
+        orgName: "", 
+        city: "Hyderabad",
+        phone: "", 
+        designer_type: "interior",
+        experience_years: 0,
+        projects_completed: 0,
+        service_area_lat: "",
+        service_area_lng: "",
+        about_text: "",
+        style_tags: [],
+        video_link: "",
+        video_link_2: "",
+        is_verified: true,
       });
       setLogoFile(null);
+      setNewTag("");
+      if (typeof onSuccess === "function") {
+        onSuccess();
+      }
     } catch (error) {
       toast.error(error.message || "Failed to create designer");
     } finally {
@@ -902,37 +1089,85 @@ const AdminOnboardDesigner = () => {
         
         <div className="bg-orange-50 border border-orange-100 rounded-2xl p-6">
           <h3 className="text-sm font-bold text-orange-800 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <Star size={16} /> Admin Privileges
+            <ShieldCheck size={16} /> Admin Privileges
           </h3>
           <div className="flex flex-col sm:flex-row gap-6">
             <label className="flex items-center gap-2 text-gray-900 font-bold cursor-pointer">
-              <input type="checkbox" checked={form.is_verified} onChange={(e) => setForm({...form, is_verified: e.target.checked})} className="w-5 h-5 rounded text-orange-600 focus:ring-orange-500 cursor-pointer" />
-              <CheckCircle size={18} className={form.is_verified ? "text-green-500" : "text-gray-400"}/> Auto-Verify Profile
-            </label>
-            <label className="flex items-center gap-2 text-gray-900 font-bold cursor-pointer">
-              <input type="checkbox" checked={form.featured_status === "featured"} onChange={(e) => setForm({...form, featured_status: e.target.checked ? "featured" : "standard"})} className="w-5 h-5 rounded text-orange-600 focus:ring-orange-500 cursor-pointer" />
-              <Star size={18} className={form.featured_status === "featured" ? "text-yellow-500 fill-yellow-500" : "text-gray-400"}/> Make Featured
+              <input
+                type="checkbox"
+                checked={form.is_verified}
+                onChange={(e) => setForm({ ...form, is_verified: e.target.checked })}
+                className="w-5 h-5 rounded text-orange-600 focus:ring-orange-500 cursor-pointer"
+              />
+              <CheckCircle size={18} className={form.is_verified ? "text-green-500" : "text-gray-400"} /> Auto-Verify Profile
             </label>
           </div>
         </div>
 
+        {/* Credentials & Agency Name */}
         <div className="grid md:grid-cols-2 gap-6">
-          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Owner's Full Name (User)</label><input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors" value={form.fullName} onChange={(e) => setForm({...form, fullName: e.target.value})} /></div>
-          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Agency Name (Public)</label><input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors" value={form.orgName} onChange={(e) => setForm({...form, orgName: e.target.value})} /></div>
-          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Account Email</label><input type="email" required className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} /></div>
-          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Temporary Password</label><input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors font-mono" value={form.password} onChange={(e) => setForm({...form, password: e.target.value})} /></div>
           <div>
-             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Phone Number</label>
-             <div className="relative">
-               <Phone className="absolute left-3 top-3.5 text-gray-400" size={16} />
-               <input type="tel" required className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 pl-10 outline-none focus:border-brand-accent transition-colors" value={form.phone} onChange={(e) => setForm({...form, phone: e.target.value})} />
-             </div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Owner's Full Name (User)</label>
+            <input
+              type="text"
+              required
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors"
+              value={form.fullName}
+              onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Agency Name (Public)</label>
+            <input
+              type="text"
+              required
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors"
+              value={form.orgName}
+              onChange={(e) => setForm({ ...form, orgName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Account Email</label>
+            <input
+              type="email"
+              required
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Temporary Password</label>
+            <input
+              type="text"
+              required
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors font-mono"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Phone Number</label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-3.5 text-gray-400" size={16} />
+              <input
+                type="tel"
+                required
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 pl-10 outline-none focus:border-brand-accent transition-colors"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+            </div>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">City</label>
             <div className="relative">
               <MapPin className="absolute left-3 top-3.5 text-gray-400" size={16} />
-              <select className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-gray-900 focus:border-brand-accent outline-none appearance-none cursor-pointer transition-colors" value={form.city} onChange={(e) => setForm({...form, city: e.target.value})}>
+              <select
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-gray-900 focus:border-brand-accent outline-none appearance-none cursor-pointer transition-colors"
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+              >
                 <option value="Hyderabad">Hyderabad</option>
                 <option value="Bangalore">Bangalore</option>
                 <option value="Mumbai">Mumbai</option>
@@ -944,13 +1179,74 @@ const AdminOnboardDesigner = () => {
           </div>
         </div>
 
+        {/* Experience & Classification */}
         <div className="grid md:grid-cols-3 gap-6 pt-4 border-t border-gray-100">
-          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Designer Type</label><select className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors cursor-pointer" value={form.designer_type} onChange={(e) => setForm({...form, designer_type: e.target.value})}><option value="interior">Interior</option><option value="commercial">Commercial</option><option value="both">Both</option></select></div>
-          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Experience (Years)</label><input type="number" min="0" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors" value={form.experience_years} onChange={(e) => setForm({...form, experience_years: e.target.value})} /></div>
-          <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Projects Completed</label><input type="number" min="0" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors" value={form.projects_completed} onChange={(e) => setForm({...form, projects_completed: e.target.value})} /></div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Designer Type</label>
+            <select
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors cursor-pointer"
+              value={form.designer_type}
+              onChange={(e) => setForm({ ...form, designer_type: e.target.value })}
+            >
+              <option value="interior">Interior</option>
+              <option value="commercial">Commercial</option>
+              <option value="both">Both</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Experience (Years)</label>
+            <input
+              type="number"
+              min="0"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors"
+              value={form.experience_years}
+              onChange={(e) => setForm({ ...form, experience_years: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Projects Completed</label>
+            <input
+              type="number"
+              min="0"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent transition-colors"
+              value={form.projects_completed}
+              onChange={(e) => setForm({ ...form, projects_completed: e.target.value })}
+            />
+          </div>
         </div>
 
-        <div>
+        {/* Service Area Coordinates */}
+        <div className="pt-4 border-t border-gray-100">
+          <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-1.5">
+            <MapPin size={14} className="text-orange-500" /> Service Area (Coordinates)
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <input
+                type="number"
+                step="any"
+                placeholder="Latitude (e.g. 17.3850)"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-900 outline-none focus:border-brand-accent"
+                value={form.service_area_lat}
+                onChange={(e) => setForm({ ...form, service_area_lat: e.target.value })}
+              />
+            </div>
+            <div>
+              <input
+                type="number"
+                step="any"
+                placeholder="Longitude (e.g. 78.4867)"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-900 outline-none focus:border-brand-accent"
+                value={form.service_area_lng}
+                onChange={(e) => setForm({ ...form, service_area_lng: e.target.value })}
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1.5">Allows homeowners to discover this designer by geographic proximity.</p>
+        </div>
+
+        {/* Agency Logo */}
+        <div className="pt-4 border-t border-gray-100">
           <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Agency Logo</label>
           <div className="flex items-center gap-6">
             <div className="w-20 h-20 rounded-2xl bg-gray-50 border-2 border-dashed border-gray-300 overflow-hidden flex items-center justify-center shrink-0">
@@ -961,9 +1257,91 @@ const AdminOnboardDesigner = () => {
           </div>
         </div>
 
-        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Detailed About Section</label><textarea rows="4" className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent resize-none transition-colors" value={form.about_text} onChange={(e) => setForm({...form, about_text: e.target.value})} /></div>
+        {/* Style Tags */}
+        <div className="pt-4 border-t border-gray-100">
+          <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Style Tags</label>
+          <div className="flex gap-2 mb-3">
+            <input
+              type="text"
+              placeholder="Add style tag (e.g. Modern, Minimalist, Luxury)..."
+              className="flex-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-900 outline-none focus:border-brand-accent"
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              onKeyDown={handleTagKeyDown}
+            />
+            <button
+              type="button"
+              onClick={addTag}
+              className="px-5 py-2.5 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-colors cursor-pointer"
+            >
+              Add
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(form.style_tags || []).map((tag) => (
+              <span
+                key={tag}
+                className="bg-orange-50 border border-orange-200 text-orange-700 text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+              >
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => removeTag(tag)}
+                  className="hover:text-red-600 transition-colors cursor-pointer"
+                >
+                  <CloseIcon size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
 
-        <button disabled={loading} type="submit" className="w-full py-4 bg-brand-accent hover:bg-orange-600 text-white rounded-xl font-bold text-lg flex justify-center items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50">
+        {/* Video Links */}
+        <div className="pt-4 border-t border-gray-100 space-y-4">
+          <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+            <Video size={14} className="text-orange-500" /> Video Showcases (Optional)
+          </label>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">Video Link 1 (YouTube URL)</label>
+              <input
+                type="url"
+                placeholder="https://youtube.com/watch?v=..."
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-900 outline-none focus:border-brand-accent"
+                value={form.video_link}
+                onChange={(e) => setForm({ ...form, video_link: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">Video Link 2 (YouTube / Portfolio)</label>
+              <input
+                type="url"
+                placeholder="https://youtube.com/watch?v=..."
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-900 outline-none focus:border-brand-accent"
+                value={form.video_link_2}
+                onChange={(e) => setForm({ ...form, video_link_2: e.target.value })}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* About/Bio */}
+        <div className="pt-4 border-t border-gray-100">
+          <label className="block text-xs font-bold text-gray-500 uppercase mb-2">About / Bio Section</label>
+          <textarea
+            rows="4"
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 outline-none focus:border-brand-accent resize-none transition-colors"
+            placeholder="Tell homeowners about the firm's history, style, and philosophy..."
+            value={form.about_text}
+            onChange={(e) => setForm({ ...form, about_text: e.target.value })}
+          />
+        </div>
+
+        <button
+          disabled={loading}
+          type="submit"
+          className="w-full py-4 bg-brand-accent hover:bg-orange-600 text-white rounded-xl font-bold text-lg flex justify-center items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+        >
           {loading ? <Loader2 className="animate-spin" /> : "Create VIP Profile"}
         </button>
       </form>
@@ -984,6 +1362,46 @@ const STATUS_OPTIONS = [
 
 const CITY_OPTIONS = ["All", "Hyderabad", "Bangalore", "Mumbai", "Delhi", "Chennai", "Kolkata"];
 
+// --- SUB-COMPONENT: TABLE PAGINATION ---
+const TablePagination = ({ currentPage, totalItems, pageSize, onPageChange }) => {
+  const totalPages = Math.ceil(totalItems / pageSize);
+  if (totalPages <= 1) return null;
+
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalItems);
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 px-2 border-t border-gray-100 mt-6">
+      <div className="text-xs text-gray-500 font-medium">
+        Showing <span className="font-bold text-gray-800">{startItem}</span> to{" "}
+        <span className="font-bold text-gray-800">{endItem}</span> of{" "}
+        <span className="font-bold text-gray-800">{totalItems}</span> results
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage <= 1}
+          className="px-3.5 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+        >
+          Previous
+        </button>
+        <span className="text-xs font-bold px-3 py-1 bg-gray-100 rounded-lg text-gray-700">
+          Page {currentPage} of {totalPages}
+        </span>
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage >= totalPages}
+          className="px-3.5 py-1.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // --- MAIN ADMIN DASHBOARD ---
 const AdminDashboard = () => {
   const queryClient = useQueryClient();
@@ -992,6 +1410,9 @@ const AdminDashboard = () => {
     applications: [],
     designers: [],
     messages: [],
+    totalClients: 0,
+    totalDesigners: 0,
+    verifiedDesigners: 0,
   });
   const [loading, setLoading] = useState(true);
   const [reviewingDesigner, setReviewingDesigner] = useState(null);
@@ -1003,6 +1424,21 @@ const AdminDashboard = () => {
   const [cityFilter, setCityFilter] = useState("All");
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isCityOpen, setIsCityOpen] = useState(false);
+  const [videoProcessingForms, setVideoProcessingForms] = useState({});
+  const [expandedVideoDesigners, setExpandedVideoDesigners] = useState({});
+
+  const toggleVideoAccordion = (designerId) => {
+    setExpandedVideoDesigners((prev) => ({
+      ...prev,
+      [designerId]: !prev[designerId],
+    }));
+  };
+
+  // TABLE PAGINATION STATES
+  const [activePage, setActivePage] = useState(1);
+  const [inboxPage, setInboxPage] = useState(1);
+  const [appsPage, setAppsPage] = useState(1);
+  const ADMIN_PAGE_SIZE = 10;
 
   const fetchAllData = useCallback(async () => {
     setLoading(true);
@@ -1014,32 +1450,54 @@ const AdminDashboard = () => {
         navigate("/login");
         return;
       }
-      const { data: role } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", session.user.id)
-        .single();
-      if (role?.role !== "admin") {
+      let isAuthorizedAdmin = false;
+      if (import.meta.env.VITE_PHASE1A_ADMIN_AUTH_RPC_ENABLED === "true") {
+        try {
+          const authorization = await resolveAdminAuthorization(supabase, null);
+          isAuthorizedAdmin = authorization.authorized;
+        } catch (authorizationError) {
+          console.error("Admin authorization check failed:", authorizationError?.code || authorizationError?.message || "Unknown error");
+          isAuthorizedAdmin = false;
+        }
+      } else {
+        const { data: role, error: roleError } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        if (roleError) throw roleError;
+        isAuthorizedAdmin = role?.role === "admin";
+      }
+      if (!isAuthorizedAdmin) {
         toast.error("Unauthorized");
         navigate("/");
         return;
       }
 
-      // Fetch ALL data including Messages and real DB counts
+      let appsQuery = supabase
+        .from("designer_applications")
+        .select("*")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (typeof appsQuery.range === "function") appsQuery = appsQuery.range(0, 99);
+
+      let designersQuery = supabase
+        .from("designers")
+        .select("*, designer_projects(count)")
+        .order("created_at", { ascending: false });
+      if (typeof designersQuery.range === "function") designersQuery = designersQuery.range(0, 99);
+
+      let msgsQuery = supabase
+        .from("contact_messages")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (typeof msgsQuery.range === "function") msgsQuery = msgsQuery.range(0, 99);
+
+      // Fetch ALL data including Messages and real DB counts with .range()
       const [appsRes, designersRes, msgsRes, clientsCount, designersCount, verifiedCount] = await Promise.all([
-        supabase
-          .from("designer_applications")
-          .select("*")
-          .eq("status", "pending")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("designers")
-          .select("*, designer_projects(count)")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("contact_messages")
-          .select("*")
-          .order("created_at", { ascending: false }),
+        appsQuery,
+        designersQuery,
+        msgsQuery,
         supabase
           .from("users")
           .select("*", { count: "exact", head: true })
@@ -1055,12 +1513,12 @@ const AdminDashboard = () => {
       ]);
 
       setData({
-        applications: appsRes.data || [],
-        designers: designersRes.data || [],
-        messages: msgsRes.data || [],
-        totalClients: clientsCount.count || 0,
-        totalDesigners: designersCount.count || 0,
-        verifiedDesigners: verifiedCount.count || 0,
+        applications: Array.isArray(appsRes?.data) ? appsRes.data : [],
+        designers: Array.isArray(designersRes?.data) ? designersRes.data : [],
+        messages: Array.isArray(msgsRes?.data) ? msgsRes.data : [],
+        totalClients: clientsCount?.count ?? 0,
+        totalDesigners: designersCount?.count ?? 0,
+        verifiedDesigners: verifiedCount?.count ?? 0,
       });
     } catch (error) {
       console.error(error);
@@ -1074,55 +1532,75 @@ const AdminDashboard = () => {
   }, [fetchAllData]);
 
   // Derived Lists
+  const pendingVideoDesigners = useMemo(
+    () =>
+      (data?.designers || []).filter((d) => {
+        const hasVideo = Boolean(
+          (d?.video_link_1 || d?.video_link || "").trim() ||
+            (d?.video_link_2 || "").trim()
+        );
+        const hasActiveWorkflow = Boolean(d?.video_status && d?.video_status !== "Not yet open");
+        return (hasVideo || hasActiveWorkflow) && !d?.videos_approved;
+      }),
+    [data?.designers]
+  );
+
   const stats = useMemo(
     () => ({
-      totalClients: data.totalClients || 0,
-      totalDesigners: data.totalDesigners || 0,
-      verifiedDesigners: data.verifiedDesigners || 0,
-      collab: (data.applications || []).length,
-      pending: (data.designers || []).filter((d) => !d.is_verified).length,
-      active: (data.designers || []).filter((d) => d.is_verified).length,
-      requests: (data.designers || []).filter(
-        (d) => d.featured_status === "requested"
+      totalClients: data?.totalClients || 0,
+      totalDesigners: data?.totalDesigners || 0,
+      verifiedDesigners: data?.verifiedDesigners || 0,
+      collab: (data?.applications || []).length,
+      pending: (data?.designers || []).filter((d) => !d?.is_verified).length,
+      active: (data?.designers || []).filter((d) => d?.is_verified).length,
+      videoPending: pendingVideoDesigners.length,
+      requests: (data?.designers || []).filter(
+        (d) => d?.featured_status === "requested"
       ).length,
-      liveFeatured: (data.designers || []).filter(
-        (d) => d.featured_status === "featured"
+      liveFeatured: (data?.designers || []).filter(
+        (d) => d?.featured_status === "featured"
       ).length,
-      messages: (data.messages || []).filter((m) => m.status === "new").length,
+      messages: (data?.messages || []).filter((m) => m?.status === "new").length,
     }),
-    [data]
+    [data, pendingVideoDesigners]
   );
 
   const pendingProfiles = useMemo(
-    () => (data.designers || []).filter((d) => !d.is_verified),
-    [data.designers]
+    () => (data?.designers || []).filter((d) => !d?.is_verified),
+    [data?.designers]
   );
   const activeProfiles = useMemo(
-    () => (data.designers || []).filter((d) => d.is_verified),
-    [data.designers]
+    () => (data?.designers || []).filter((d) => d?.is_verified),
+    [data?.designers]
   );
   const requestedFeatures = useMemo(
     () =>
-      (data.designers || []).filter((d) => d.featured_status === "requested"),
-    [data.designers]
+      (data?.designers || []).filter((d) => d?.featured_status === "requested"),
+    [data?.designers]
   );
   const activeFeatured = useMemo(
     () =>
-      (data.designers || [])
-        .filter((d) => d.featured_status === "featured")
-        .sort((a, b) => (b.priority_score || 0) - (a.priority_score || 0)),
-    [data.designers]
+      (data?.designers || [])
+        .filter((d) => d?.featured_status === "featured")
+        .sort((a, b) => (b?.priority_score || 0) - (a?.priority_score || 0)),
+    [data?.designers]
   );
 
   // Filter Active Designers Logic (Combined Search + City + Status)
   const filteredActiveDesigners = useMemo(() => {
     return (activeProfiles || []).filter((designer) => {
+      if (!designer) return false;
       // 1. Search Check
-      const searchLower = activeSearch.toLowerCase();
+      const searchLower = (activeSearch || "").toLowerCase();
+      const name = (designer.name || "").toLowerCase();
+      const email = (designer.email || "").toLowerCase();
+      const phone = designer.phone ? String(designer.phone).toLowerCase() : "";
+      
       const matchesSearch =
-        designer.name.toLowerCase().includes(searchLower) ||
-        (designer.email && designer.email.toLowerCase().includes(searchLower)) ||
-        (designer.phone && designer.phone.includes(searchLower));
+        !searchLower ||
+        name.includes(searchLower) ||
+        email.includes(searchLower) ||
+        phone.includes(searchLower);
       if (!matchesSearch) return false;
 
       // 2. City Check
@@ -1161,23 +1639,205 @@ const AdminDashboard = () => {
     });
   }, [activeProfiles, activeSearch, activeFilter, cityFilter]);
 
+  useEffect(() => {
+    setActivePage(1);
+  }, [activeSearch, activeFilter, cityFilter]);
+
+  const paginatedActiveDesigners = useMemo(() => {
+    const start = (activePage - 1) * ADMIN_PAGE_SIZE;
+    return (filteredActiveDesigners || []).slice(start, start + ADMIN_PAGE_SIZE);
+  }, [filteredActiveDesigners, activePage]);
+
+  const paginatedApplications = useMemo(() => {
+    const start = (appsPage - 1) * ADMIN_PAGE_SIZE;
+    return (data?.applications || []).slice(start, start + ADMIN_PAGE_SIZE);
+  }, [data?.applications, appsPage]);
+
+  const paginatedMessages = useMemo(() => {
+    const start = (inboxPage - 1) * ADMIN_PAGE_SIZE;
+    return (data?.messages || []).slice(start, start + ADMIN_PAGE_SIZE);
+  }, [data?.messages, inboxPage]);
+
   // --- ACTIONS ---
   const handleMessageStatus = async (id, status) => {
-    setData((prev) => ({
-      ...prev,
-      messages: prev.messages.map((m) => (m.id === id ? { ...m, status } : m)),
-    }));
-    await supabase.from("contact_messages").update({ status }).eq("id", id);
+    try {
+      await updateContactMessageStatusWithSecureRpc(supabase, id, status);
+      setData((prev) => ({
+        ...prev,
+        messages: (prev?.messages || []).map((m) => (m.id === id ? { ...m, status } : m)),
+      }));
+      toast.success("Message status updated");
+    } catch (err) {
+      toast.error(err.message || "Failed to update message status");
+    }
   };
 
   const handleDeleteMessage = async (id) => {
     if (!window.confirm("Delete this message?")) return;
+    try {
+      await deleteContactMessageWithSecureRpc(supabase, id);
+      setData((prev) => ({
+        ...prev,
+        messages: (prev?.messages || []).filter((m) => m.id !== id),
+      }));
+      toast.success("Message deleted");
+    } catch (err) {
+      toast.error(err.message || "Failed to delete message");
+    }
+  };
+
+  const getVideoForm = useCallback(
+    (designer) => {
+      const form = videoProcessingForms[designer.id];
+      if (form) return form;
+      return {
+        status: designer.video_status || "Not yet open",
+        published1: "",
+        published2: "",
+      };
+    },
+    [videoProcessingForms]
+  );
+
+  const updateVideoForm = (designerId, patch) => {
+    setVideoProcessingForms((prev) => {
+      const current = prev[designerId] || {
+        status: "Not yet open",
+        published1: "",
+        published2: "",
+      };
+      return {
+        ...prev,
+        [designerId]: {
+          ...current,
+          ...patch,
+        },
+      };
+    });
+  };
+
+  const handleVideoStatusChange = async (designer, newStatus) => {
+    if (!window.confirm("Are you sure you want to update this video status?")) return;
+    updateVideoForm(designer.id, { status: newStatus });
+
+    const currentForm = getVideoForm(designer);
+    const adminInputLink1 = (currentForm.published1 || "").trim();
+    const adminInputLink2 = (currentForm.published2 || "").trim();
+
+    let finalLink1 = adminInputLink1 ? adminInputLink1 : (designer.video_link_1 || designer.video_link || null);
+    let finalLink2 = adminInputLink2 ? adminInputLink2 : (designer.video_link_2 || null);
+
+    // Smart Auto-Shift: If slot 1 is empty but slot 2 has a link, move it to slot 1.
+    if (!finalLink1 && finalLink2) {
+      finalLink1 = finalLink2;
+      finalLink2 = null;
+    }
+
+    const payload = {
+      video_status: newStatus,
+      videos_approved: newStatus === "Approved",
+      video_link_1: finalLink1,
+      video_link_2: finalLink2,
+      video_link: finalLink1,
+    };
+
+    try {
+      const { error } = await supabase
+        .from("designers")
+        .update(payload)
+        .eq("id", designer.id);
+
+      if (error) throw error;
+
+      setData((prev) => ({
+        ...prev,
+        designers: (prev?.designers || []).map((d) =>
+          d.id === designer.id ? { ...d, ...payload } : d
+        ),
+      }));
+
+      toast.success(
+        newStatus === "Approved"
+          ? `Videos approved and published for ${designer.name}!`
+          : `Video status saved as "${newStatus}" for ${designer.name}`
+      );
+    } catch (err) {
+      toast.error(err.message || "Failed to update video status");
+    }
+  };
+
+  const handleSaveVideoProcessing = async (designer, forceApproved = true, alreadyConfirmed = false) => {
+    if (!alreadyConfirmed) {
+      if (!window.confirm("Are you sure you want to publish & save this video workflow?")) return;
+    }
+    const currentForm = getVideoForm(designer);
+    const newStatus = forceApproved ? "Approved" : (currentForm.status || "Approved");
+
+    const adminInputLink1 = (currentForm.published1 || "").trim();
+    const adminInputLink2 = (currentForm.published2 || "").trim();
+
+    let finalLink1 = adminInputLink1 ? adminInputLink1 : (designer.video_link_1 || designer.video_link || null);
+    let finalLink2 = adminInputLink2 ? adminInputLink2 : (designer.video_link_2 || null);
+
+    // Smart Auto-Shift: If slot 1 is empty but slot 2 has a link, move it to slot 1.
+    if (!finalLink1 && finalLink2) {
+      finalLink1 = finalLink2;
+      finalLink2 = null;
+    }
+
+    const payload = {
+      video_status: newStatus,
+      videos_approved: newStatus === "Approved",
+      video_link_1: finalLink1,
+      video_link_2: finalLink2,
+      video_link: finalLink1,
+    };
+
+    try {
+      const { error } = await supabase
+        .from("designers")
+        .update(payload)
+        .eq("id", designer.id);
+
+      if (error) throw error;
+
+      setData((prev) => ({
+        ...prev,
+        designers: (prev?.designers || []).map((d) =>
+          d.id === designer.id ? { ...d, ...payload } : d
+        ),
+      }));
+
+      toast.success(`Videos published & saved for ${designer.name}!`);
+    } catch (err) {
+      toast.error(err.message || "Failed to update video workflow.");
+    }
+  };
+
+  const handleApproveVideos = async (designerId) => {
+    const designer = (data?.designers || []).find((d) => d.id === designerId);
+    if (!designer) return;
+    await handleSaveVideoProcessing(designer, true);
+  };
+
+  const handleUpdateVideoLink = async (designerId, videoLink) => {
+    const { error } = await supabase
+      .from("designers")
+      .update({ video_link: videoLink || null })
+      .eq("id", designerId);
+
+    if (error) {
+      toast.error("Failed to update video link: " + error.message);
+      throw error;
+    }
+
     setData((prev) => ({
       ...prev,
-      messages: prev.messages.filter((m) => m.id !== id),
+      designers: (prev?.designers || []).map((d) =>
+        d.id === designerId ? { ...d, video_link: videoLink || null } : d
+      ),
     }));
-    await supabase.from("contact_messages").delete().eq("id", id);
-    toast.success("Message deleted");
+    toast.success("Official YouTube URL updated successfully!");
   };
 
   const updatePriority = async (id, score) => {
@@ -1189,7 +1849,7 @@ const AdminDashboard = () => {
       toast.success("Rank Updated");
       setData((prev) => ({
         ...prev,
-        designers: prev.designers.map((d) =>
+        designers: (prev?.designers || []).map((d) =>
           d.id === id ? { ...d, priority_score: score } : d
         ),
       }));
@@ -1207,7 +1867,7 @@ const AdminDashboard = () => {
   ) => {
     let expiry = null;
     if (status === "featured" && durationDays > 0) {
-      const designer = data.designers.find((d) => d.id === id);
+      const designer = (data?.designers || []).find((d) => d?.id === id);
       const currentExpiry = designer?.featured_expiry
         ? new Date(designer.featured_expiry)
         : null;
@@ -1312,6 +1972,10 @@ const AdminDashboard = () => {
       await onboardDesignerApplicationWithSuccess(supabase, app, () => {
         toast.success("Application approved. The designer can now access the dashboard and complete their profile.", { id: toastId });
       });
+      setData((prev) => ({
+        ...prev,
+        applications: (prev?.applications || []).filter((a) => a.id !== app?.id),
+      }));
       fetchAllData();
     } catch (err) {
       console.error(`Failed to onboard application ${app?.id ?? "(missing id)"}:`, err);
@@ -1326,7 +1990,7 @@ const AdminDashboard = () => {
 
     setData((prev) => ({
       ...prev,
-      designers: prev.designers.map((d) =>
+      designers: (prev?.designers || []).map((d) =>
         d.id === id ? { 
           ...d, 
           is_verified: true, 
@@ -1349,31 +2013,62 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteDesigner = async (id) => {
-    if (
-      !window.confirm(
-        "Delete designer? This will revert them to a Client account."
-      )
-    )
-      return;
+  const handleSetDesignerVisibility = async (id, isPublic) => {
+    const action = isPublic ? "restore public visibility for" : "hide";
+    const confirmation = isPublic
+      ? "Restore this designer's public visibility? Existing verification and subscription state will be preserved."
+      : "Hide this designer from public discovery? Their profile and historical data will be preserved.";
+    if (!window.confirm(confirmation)) return;
+
     try {
-      const designer = data.designers.find((d) => d.id === id);
-      if (designer?.user_id) {
-        await supabase
-          .from("users")
-          .update({ role: "client" })
-          .eq("id", designer.user_id);
-      }
-      await supabase.from("designers").delete().eq("id", id);
+      const parsedId = Number(id);
+      const targetId = !isNaN(parsedId) ? parsedId : id;
+
+      // Explicitly target .eq('id', targetId) and only send clean is_public status
+      const { error } = await supabase
+        .from("designers")
+        .update({ is_public: Boolean(isPublic) })
+        .eq("id", targetId);
+
+      if (error) throw error;
+
       setData((prev) => ({
         ...prev,
-        designers: prev.designers.filter((d) => d.id !== id),
+        designers: (prev?.designers || []).map((designer) =>
+          designer.id === id || designer.id === targetId ? { ...designer, is_public: isPublic } : designer
+        ),
+      }));
+      toast.success(isPublic ? "Designer visibility restored." : "Designer hidden; profile data preserved.");
+    } catch (error) {
+      console.error(`Failed to ${action} designer ${id}:`, error);
+      toast.error(error.message || "Could not update designer visibility.");
+    }
+  };
+
+  const handleRejectProfile = async (id) => {
+    if (!window.confirm("Hide this profile from public discovery? The designer's profile and history will be preserved.")) return;
+    try {
+      const parsedId = Number(id);
+      const targetId = !isNaN(parsedId) ? parsedId : id;
+
+      const { error } = await supabase
+        .from("designers")
+        .update({ is_public: false })
+        .eq("id", targetId);
+
+      if (error) throw error;
+
+      setData((prev) => ({
+        ...prev,
+        designers: (prev?.designers || []).map((designer) =>
+          designer.id === id || designer.id === targetId ? { ...designer, is_public: false } : designer
+        ),
       }));
       setReviewingDesigner(null);
-      toast.success("Deleted & Role Reverted");
+      toast.success("Profile hidden; designer data preserved.");
     } catch (error) {
-      console.error(error);
-      toast.error("Error deleting");
+      console.error(`Failed to hide designer profile ${id}:`, error);
+      toast.error(error.message || "Could not hide designer profile.");
     }
   };
 
@@ -1391,12 +2086,20 @@ const AdminDashboard = () => {
   
   const handleLogout = async () => {
     try {
-      await signOut();
-      queryClient.clear();
+      await signOut(queryClient, null, "/login");
+    } catch (error) {
+      console.warn("Server signout failed, forcing local cleanup", error);
+    } finally {
+      if (queryClient) {
+        queryClient.setQueryData(['auth', 'user'], null);
+        queryClient.setQueryData(['auth', 'session'], null);
+        queryClient.clear();
+      }
       localStorage.clear();
-      navigate("/login");
-    } catch {
-      // fallback
+      sessionStorage.clear();
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
     }
   };
 
@@ -1446,6 +2149,21 @@ const AdminDashboard = () => {
         >
           <MessageSquare size={20} />
           <span className="text-[10px]">Inbox</span>
+        </button>
+        {/* NEW: Mobile Video Processing Tab */}
+        <button
+          onClick={() => setActiveTab("video-processing")}
+          className={`flex flex-col items-center gap-1 relative ${
+            activeTab === "video-processing" ? "text-orange-500" : "text-gray-500"
+          }`}
+        >
+          <Video size={20} />
+          <span className="text-[10px]">Videos</span>
+          {stats.videoPending > 0 && (
+            <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] font-bold px-1 rounded-full">
+              {stats.videoPending}
+            </span>
+          )}
         </button>
         {/* NEW: Mobile Onboard Tab */}
         <button
@@ -1531,6 +2249,25 @@ const AdminDashboard = () => {
             <Zap size={20} /> Onboard VIP
           </button>
 
+          {/* VIDEO PROCESSING TAB */}
+          <button
+            onClick={() => setActiveTab("video-processing")}
+            className={`w-full flex justify-between px-5 py-3.5 rounded-xl transition-all font-medium ${
+              activeTab === "video-processing"
+                ? "bg-orange-600 text-white shadow-md"
+                : "hover:bg-gray-100 text-gray-500"
+            }`}
+          >
+            <span className="flex items-center gap-3">
+              <Video size={20} /> Video Processing
+            </span>
+            {stats.videoPending > 0 && (
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${activeTab === 'video-processing' ? 'bg-white text-orange-600' : 'bg-amber-100 text-amber-700'}`}>
+                {stats.videoPending}
+              </span>
+            )}
+          </button>
+
           {/* INBOX TAB */}
           <button
             onClick={() => setActiveTab("inbox")}
@@ -1563,6 +2300,7 @@ const AdminDashboard = () => {
           <h1 className="text-3xl font-bold text-gray-900 capitalize">
             {activeTab === "pending" ? "Verify Profiles" : 
              activeTab === "onboard" ? "VIP Onboarding" : 
+             activeTab === "video-processing" ? "Video Processing" :
              activeTab}
           </h1>
         </header>
@@ -1578,9 +2316,9 @@ const AdminDashboard = () => {
           />
         )}
 
-        {/* --- NEW: ONBOARD VIP TAB --- */}
+        {/* --- VIP ONBOARD TAB --- */}
         {activeTab === "onboard" && (
-          <AdminOnboardDesigner />
+          <AdminOnboardDesigner onSuccess={fetchAllData} />
         )}
 
         {activeTab === "applications" && (
@@ -1590,27 +2328,32 @@ const AdminDashboard = () => {
                 No new requests found.
               </div>
             )}
-            {(data.applications || []).map((app) => (
+            {paginatedApplications.map((app) => (
               <div
-                key={app.id}
+                key={app?.id}
                 className="bg-white p-5 rounded-2xl border border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-sm hover:shadow-md hover:border-gray-300 transition-all"
               >
                 <div className="flex-1 w-full">
-                  <h3 className="text-xl font-bold text-gray-900">
-                    {app.org_name}
-                  </h3>
-                  <div className="flex flex-wrap gap-4 text-sm text-gray-500 mt-2">
-                    <span className="flex items-center gap-1">
-                      <MapPin size={14} /> {app.city}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Phone size={14} /> {app.phone}
-                    </span>
-                    <span className="flex items-center gap-1 text-gray-900 font-medium">
-                      <Mail size={14} className="text-gray-500" /> {app.email}
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {app?.org_name || "Unnamed Application"}
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-md bg-orange-50 border border-orange-200 text-xs font-bold text-orange-700 uppercase tracking-wide">
+                      {app?.designer_type || "Designer"}
                     </span>
                   </div>
-                  {(app.website_url || app.portfolio_link) && (
+                  <div className="flex flex-wrap gap-4 text-sm text-gray-500 mt-2">
+                    <span className="flex items-center gap-1">
+                      <MapPin size={14} /> {app?.city || "Unknown City"}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Phone size={14} /> {app?.phone || "N/A"}
+                    </span>
+                    <span className="flex items-center gap-1 text-gray-900 font-medium">
+                      <Mail size={14} className="text-gray-500" /> {app?.email || "N/A"}
+                    </span>
+                  </div>
+                  {(app?.website_url || app?.portfolio_link) && (
                     <a
                       href={app.website_url || app.portfolio_link}
                       target="_blank"
@@ -1621,22 +2364,28 @@ const AdminDashboard = () => {
                     </a>
                   )}
                 </div>
-                <div className="flex gap-3 w-full md:w-auto">
+                <div className="flex flex-wrap gap-2.5 w-full md:w-auto">
                   <button
                     onClick={() => handleOnboard(app)}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm text-sm cursor-pointer"
                   >
-                    <UserPlus size={18} /> Onboard
+                    <CheckCircle size={16} /> Approve
                   </button>
                   <button
-                    onClick={() => handleRejectApp(app.id)}
-                    className="flex-1 bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 px-5 py-2.5 rounded-xl font-bold transition-colors"
+                    onClick={() => app?.id && handleRejectApp(app.id)}
+                    className="flex-1 bg-white border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 px-5 py-2.5 rounded-xl font-bold transition-colors text-sm flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    Reject
+                    <XCircle size={16} /> Reject
                   </button>
                 </div>
               </div>
             ))}
+            <TablePagination
+              currentPage={appsPage}
+              totalItems={(data?.applications || []).length}
+              pageSize={ADMIN_PAGE_SIZE}
+              onPageChange={setAppsPage}
+            />
           </div>
         )}
 
@@ -1649,14 +2398,14 @@ const AdminDashboard = () => {
             )}
             {(pendingProfiles || []).map((d) => (
               <div
-                key={d.id}
+                key={d?.id}
                 className="bg-white p-5 rounded-2xl border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all group"
               >
                 {/* Left Side: Avatar + Info */}
                 <div className="flex gap-5 items-center w-full">
                   {/* Avatar Area */}
                   <div className="w-16 h-16 rounded-2xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner">
-                    {d.logo_url ? (
+                    {d?.logo_url ? (
                       <img
                         src={d.logo_url}
                         alt="logo"
@@ -1665,7 +2414,7 @@ const AdminDashboard = () => {
                     ) : (
                       <div className="w-full h-full bg-gray-100 flex items-center justify-center">
                         <span className="text-2xl font-bold text-gray-400 uppercase">
-                          {d.name?.[0]}
+                          {d?.name?.[0] || "?"}
                         </span>
                       </div>
                     )}
@@ -1675,11 +2424,11 @@ const AdminDashboard = () => {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <h3 className="text-lg font-bold text-gray-900 truncate leading-none">
-                        {d.name}
+                        {d?.name || "Unnamed"}
                       </h3>
                       {/* Type Badge */}
                       <span className="px-2 py-0.5 rounded-md bg-gray-100 border border-gray-200 text-[10px] uppercase font-bold text-gray-600 tracking-wide">
-                        {d.designer_type || "Designer"}
+                        {d?.designer_type || "Designer"}
                       </span>
                     </div>
 
@@ -1687,17 +2436,17 @@ const AdminDashboard = () => {
                     <div className="text-xs text-gray-500 flex items-center gap-2 mb-1.5">
                       <span className="flex items-center gap-1">
                         <MapPin size={12} className="text-gray-400" />
-                        {d.city || "Unknown City"}
+                        {d?.city || "Unknown City"}
                       </span>
                       <span className="w-1 h-1 rounded-full bg-gray-300"></span>
                       <span className="truncate max-w-[200px] italic text-gray-500">
-                        {d.bio || "No bio added"}
+                        {d?.bio || "No bio added"}
                       </span>
                     </div>
 
                     {/* Project Status Badge */}
                     <div className="flex items-center gap-2">
-                      {d.designer_projects?.[0]?.count > 0 ? (
+                      {(d?.designer_projects?.[0]?.count || 0) > 0 ? (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold uppercase tracking-wide">
                           <CheckCircle size={10} />{" "}
                           {d.designer_projects[0].count} Projects
@@ -1810,25 +2559,297 @@ const AdminDashboard = () => {
                   </button>
                 </div>
               ) : (
-                (filteredActiveDesigners || []).map((d) => (
+                paginatedActiveDesigners.map((d) => (
                   <ActiveDesignerCard
-                    key={d.id}
+                    key={d?.id}
                     d={d}
                     navigate={navigate}
                     toggleFeature={toggleFeature}
-                    handleDeleteDesigner={handleDeleteDesigner}
+                    handleSetDesignerVisibility={handleSetDesignerVisibility}
                     handleRenewSubscription={handleRenewSubscription}
                   />
                 ))
               )}
+              <TablePagination
+                currentPage={activePage}
+                totalItems={(filteredActiveDesigners || []).length}
+                pageSize={ADMIN_PAGE_SIZE}
+                onPageChange={setActivePage}
+              />
             </div>
+          </div>
+        )}
+
+        {/* --- VIDEO PROCESSING TAB --- */}
+        {activeTab === "video-processing" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white p-5 rounded-2xl border border-gray-200">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Pending Video Reviews</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Designers who submitted videos awaiting admin review and approval before displaying publicly.
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold rounded-full w-fit">
+                {pendingVideoDesigners.length} pending
+              </span>
+            </div>
+
+            {pendingVideoDesigners.length === 0 ? (
+              <div className="text-center py-20 bg-gray-50 rounded-3xl border border-gray-200 border-dashed">
+                <Video className="mx-auto text-gray-400 mb-2" size={36} />
+                <p className="text-gray-500 font-medium">All submitted designer videos have been processed!</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6">
+                {pendingVideoDesigners.map((designer) => {
+                  const video1 = designer?.video_link_1 || designer?.video_link;
+                  const video2 = designer?.video_link_2;
+                  const embed1 = video1 ? getYouTubeEmbedUrl(video1) : null;
+                  const embed2 = video2 ? getYouTubeEmbedUrl(video2) : null;
+                  const form = getVideoForm(designer);
+                  const isExpanded = Boolean(expandedVideoDesigners[designer.id]);
+
+                  const statusColors = {
+                    "Not yet open": "bg-gray-100 text-gray-700 border-gray-200",
+                    Downloaded: "bg-blue-50 text-blue-700 border-blue-200",
+                    Editing: "bg-purple-50 text-purple-700 border-purple-200",
+                    Uploading: "bg-amber-50 text-amber-700 border-amber-200",
+                    Published: "bg-cyan-50 text-cyan-700 border-cyan-200",
+                    Approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                  };
+
+                  return (
+                    <div
+                      key={designer.id}
+                      className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden transition-all"
+                    >
+                      {/* ACCORDION CLICKABLE HEADER */}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => toggleVideoAccordion(designer.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleVideoAccordion(designer.id);
+                          }
+                        }}
+                        className="flex items-center justify-between gap-4 p-5 hover:bg-gray-50/70 cursor-pointer select-none transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0">
+                            {designer.logo_url ? (
+                              <img
+                                src={designer.logo_url}
+                                alt="logo"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center font-bold text-lg text-gray-500">
+                                {designer.name?.[0] || "?"}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                              {designer.name}
+                            </h3>
+                            <div className="flex flex-wrap gap-2 text-xs text-gray-500 mt-1">
+                              <span>{designer.city || "Unknown City"}</span>
+                              <span>•</span>
+                              <span>{designer.designer_type || "Designer"}</span>
+                              <span>•</span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                                  statusColors[form.status] || "bg-gray-100 text-gray-600 border-gray-200"
+                                }`}
+                              >
+                                {form.status}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-semibold text-gray-400 hidden sm:inline">
+                            {isExpanded ? "Collapse" : "Review Videos"}
+                          </span>
+                          <div className="p-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
+                            {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ACCORDION CONTENT BODY */}
+                      {isExpanded && (
+                        <div className="p-6 pt-2 border-t border-gray-100 space-y-6 animate-in fade-in duration-200">
+                          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 pt-2">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                              Submitted Videos (Inspect & Download)
+                            </h4>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveVideoProcessing(designer, true)}
+                              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer w-fit"
+                            >
+                              <CheckCircle size={15} /> Publish & Save
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Video 1 */}
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col gap-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-bold text-gray-700 uppercase">Raw Video 1</span>
+                                {!video1 && (
+                                  <span className="px-2 py-0.5 bg-red-50 border border-red-200 text-red-700 text-[11px] font-bold rounded-lg">
+                                    Video Removed by Designer
+                                  </span>
+                                )}
+                              </div>
+                              {video1 ? (
+                                <>
+                                  {embed1 ? (
+                                    <iframe
+                                      src={embed1}
+                                      title="Video 1 Preview"
+                                      className="w-full aspect-video rounded-lg border border-gray-200"
+                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                      allowFullScreen
+                                    />
+                                  ) : (
+                                    <div className="aspect-video bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-500 px-3 text-center">
+                                      Non-embeddable or external link
+                                    </div>
+                                  )}
+                                  <div className="flex items-center justify-between gap-2 mt-1">
+                                    <span className="text-xs text-gray-500 truncate">{video1}</span>
+                                    <a
+                                      href={video1}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      download
+                                      className="px-2.5 py-1 bg-white border border-gray-300 hover:bg-gray-100 rounded-lg text-xs font-semibold text-blue-600 shrink-0 inline-flex items-center gap-1"
+                                    >
+                                      <Download size={12} /> Inspect / Open
+                                    </a>
+                                  </div>
+                                </>
+                              ) : (
+                                <p className="text-xs text-red-600 italic py-4 font-medium">Video Removed by Designer</p>
+                              )}
+                            </div>
+
+                            {/* Video 2 */}
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col gap-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-bold text-gray-700 uppercase">Raw Video 2</span>
+                                {!video2 && (
+                                  <span className="px-2 py-0.5 bg-red-50 border border-red-200 text-red-700 text-[11px] font-bold rounded-lg">
+                                    Video Removed by Designer
+                                  </span>
+                                )}
+                              </div>
+                              {video2 ? (
+                                <>
+                                  {embed2 ? (
+                                    <iframe
+                                      src={embed2}
+                                      title="Video 2 Preview"
+                                      className="w-full aspect-video rounded-lg border border-gray-200"
+                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                      allowFullScreen
+                                    />
+                                  ) : (
+                                    <div className="aspect-video bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-500 px-3 text-center">
+                                      Non-embeddable or external link
+                                    </div>
+                                  )}
+                                  <div className="flex items-center justify-between gap-2 mt-1">
+                                    <span className="text-xs text-gray-500 truncate">{video2}</span>
+                                    <a
+                                      href={video2}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      download
+                                      className="px-2.5 py-1 bg-white border border-gray-300 hover:bg-gray-100 rounded-lg text-xs font-semibold text-blue-600 shrink-0 inline-flex items-center gap-1"
+                                    >
+                                      <Download size={12} /> Inspect / Open
+                                    </a>
+                                  </div>
+                                </>
+                              ) : (
+                                <p className="text-xs text-red-600 italic py-4 font-medium">Video Removed by Designer</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Processing Controls */}
+                          <div className="bg-amber-50/40 p-4 rounded-xl border border-amber-200/60 space-y-3">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                              Video Processing & Final YouTube Links
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                  Status
+                                </label>
+                                <select
+                                  value={form.status || designer.video_status || "Not yet open"}
+                                  onChange={(e) => handleVideoStatusChange(designer, e.target.value)}
+                                  className="w-full text-xs font-medium bg-white border border-gray-300 rounded-xl px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                >
+                                  <option value="Not yet open">Not yet open</option>
+                                  <option value="Downloaded">Downloaded</option>
+                                  <option value="Editing">Editing</option>
+                                  <option value="Uploading">Uploading</option>
+                                  <option value="Published">Published</option>
+                                  <option value="Approved">Approved</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                  Published YouTube Link 1
+                                </label>
+                                <input
+                                  type="url"
+                                  value={form.published1}
+                                  onChange={(e) => updateVideoForm(designer.id, { published1: e.target.value })}
+                                  placeholder="https://youtube.com/watch?v=..."
+                                  className="w-full text-xs bg-white border border-gray-300 rounded-xl px-3 py-2 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                                  Published YouTube Link 2
+                                </label>
+                                <input
+                                  type="url"
+                                  value={form.published2}
+                                  onChange={(e) => updateVideoForm(designer.id, { published2: e.target.value })}
+                                  placeholder="https://youtube.com/watch?v=..."
+                                  className="w-full text-xs bg-white border border-gray-300 rounded-xl px-3 py-2 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
         {/* --- INBOX TAB --- */}
         {activeTab === "inbox" && (
           <div className="space-y-4">
-            {(data.messages || []).length === 0 && (
+            {(data?.messages || []).length === 0 && (
               <div className="text-center py-20 bg-gray-50 rounded-3xl border border-gray-200 border-dashed">
                 <MessageSquare
                   className="mx-auto text-gray-400 mb-2"
@@ -1837,42 +2858,44 @@ const AdminDashboard = () => {
                 <p className="text-gray-500">Your inbox is empty.</p>
               </div>
             )}
-            {(data.messages || []).map((msg) => (
+            {paginatedMessages.map((msg) => (
               <div
-                key={msg.id}
+                key={msg?.id}
                 className={`bg-white p-5 rounded-2xl border flex flex-col md:flex-row justify-between gap-4 transition-all ${
-                  msg.status === "new"
+                  msg?.status === "new"
                     ? "border-blue-300 shadow-md shadow-blue-100 bg-blue-50/30"
                     : "border-gray-200"
                 }`}
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-1">
-                    <h3 className="font-bold text-gray-900">{msg.name}</h3>
-                    {msg.status === "new" && (
+                    <h3 className="font-bold text-gray-900">{msg?.name || "Anonymous"}</h3>
+                    {msg?.status === "new" && (
                       <span className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold px-2 py-0.5 rounded-full">
                         NEW
                       </span>
                     )}
                     <span className="text-xs text-gray-500 flex items-center gap-1">
                       <Clock size={10} />{" "}
-                      {new Date(msg.created_at).toLocaleDateString()}
+                      {msg?.created_at ? new Date(msg.created_at).toLocaleDateString() : "Recent"}
                     </span>
                   </div>
-                  <a
-                    href={`mailto:${msg.email}`}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline mb-2 block"
-                  >
-                    {msg.email}
-                  </a>
+                  {msg?.email && (
+                    <a
+                      href={`mailto:${msg.email}`}
+                      className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline mb-2 block"
+                    >
+                      {msg.email}
+                    </a>
+                  )}
                   <p className="text-gray-700 text-sm bg-gray-50 p-4 rounded-xl border border-gray-100 italic">
-                    "{msg.message}"
+                    "{msg?.message || ""}"
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 justify-center min-w-30">
-                  {msg.status === "new" ? (
+                  {msg?.status === "new" ? (
                     <button
-                      onClick={() => handleMessageStatus(msg.id, "read")}
+                      onClick={() => msg?.id && handleMessageStatus(msg.id, "read")}
                       className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
                     >
                       <CheckSquare size={14} /> Mark Read
@@ -1883,7 +2906,7 @@ const AdminDashboard = () => {
                     </span>
                   )}
                   <button
-                    onClick={() => handleDeleteMessage(msg.id)}
+                    onClick={() => msg?.id && handleDeleteMessage(msg.id)}
                     className="bg-white hover:bg-red-50 text-red-600 border border-gray-200 hover:border-red-200 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
                   >
                     <Trash2 size={14} /> Delete
@@ -1891,6 +2914,12 @@ const AdminDashboard = () => {
                 </div>
               </div>
             ))}
+            <TablePagination
+              currentPage={inboxPage}
+              totalItems={(data?.messages || []).length}
+              pageSize={ADMIN_PAGE_SIZE}
+              onPageChange={setInboxPage}
+            />
           </div>
         )}
       </main>
@@ -1900,7 +2929,7 @@ const AdminDashboard = () => {
           designer={reviewingDesigner}
           onClose={() => setReviewingDesigner(null)}
           onApprove={handlePublishProfile}
-          onReject={handleDeleteDesigner}
+          onReject={handleRejectProfile}
         />
       )}
 

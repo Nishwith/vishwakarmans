@@ -32,6 +32,8 @@ const mockSupabaseClient = vi.hoisted(() => {
       logo_url: 'https://example.com/logo.png',
       rating_avg: 4.8,
       is_verified: true,
+      is_public: true,
+      is_subscription_active: true,
     },
   ];
 
@@ -41,6 +43,7 @@ const mockSupabaseClient = vi.hoisted(() => {
         select: () => builder,
         eq: () => builder,
         order: () => builder,
+        range: () => builder,
         then: (onfulfilled) => Promise.resolve({ data: mockDesignersData, error: null }).then(onfulfilled),
       };
       return builder;
@@ -50,6 +53,7 @@ const mockSupabaseClient = vi.hoisted(() => {
         select: () => builder,
         eq: () => builder,
         order: () => builder,
+        range: () => builder,
         then: (onfulfilled) => Promise.resolve({ data: [], error: null }).then(onfulfilled),
       };
       return builder;
@@ -159,10 +163,11 @@ describe('Vishwakarmans Client B2C Application Integration Tests', () => {
     await screen.findByText(/Studio Elite/i);
     expect(screen.getByText(/Studio Elite/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Hyderabad/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Find Designers Near Me/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Sort Designers/i)).toBeInTheDocument();
+    expect(screen.getByText(/Compare Designers/i)).toBeInTheDocument();
   });
 
-  test('Find Designers Near Me invokes Geolocation and get_designers_nearby RPC, then clears filter', async () => {
+  test('Distance sorting option invokes Geolocation, calculates distances and displays designers', async () => {
     authHooks.useCurrentUser.mockReturnValue({
       data: { id: 'client-user-123', email: 'client@example.com' },
       isLoading: false,
@@ -201,26 +206,16 @@ describe('Vishwakarmans Client B2C Application Integration Tests', () => {
 
     await screen.findByText(/Studio Elite/i);
 
-    const nearMeBtn = screen.getByRole('button', { name: /Find Designers Near Me/i });
-    await user.click(nearMeBtn);
+    const sortSelect = screen.getByLabelText(/Sort Designers/i);
+    await user.selectOptions(sortSelect, 'distance');
 
     expect(getCurrentPositionMock).toHaveBeenCalled();
-    expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('get_designers_nearby', {
-      user_lat: 17.3850,
-      user_lng: 78.4867,
-      radius_meters: 50000,
-    });
 
-    // Verify nearby designer is rendered
-    await screen.findByText(/Nearby Artisan Studio/i);
-    expect(screen.getByText(/Nearby Artisan Studio/i)).toBeInTheDocument();
-    expect(screen.getByText(/Clear Filter/i)).toBeInTheDocument();
+    // Verify distance sorting status indicator is rendered
+    await screen.findByText(/Sorted by distance/i);
+    expect(screen.getByText(/Sorted by distance/i)).toBeInTheDocument();
 
-    // Click Clear Filter
-    const clearBtn = screen.getByRole('button', { name: /Clear Filter/i });
-    await user.click(clearBtn);
-
-    // Default designer restored
+    // Default designer is still rendered
     await screen.findByText(/Studio Elite/i);
     expect(screen.getByText(/Studio Elite/i)).toBeInTheDocument();
   });

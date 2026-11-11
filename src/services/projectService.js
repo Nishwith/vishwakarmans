@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { submitOrReopenInquiry, archiveInquiry } from './designerInquiryService';
 
 // ── Designers ────────────────────────────────────────────────────────────
 
@@ -88,18 +89,16 @@ export const getConnection = async (clientId, designerId) => {
   return data;
 };
 
-/** Delete existing connection, then insert a fresh one. */
+/** Submit or reopen existing connection (Option B inquiry lifecycle: preserves connection ID and status transition). */
 export const upsertConnection = async (clientId, designerId, payload) => {
-  await supabase.from('connections').delete()
-    .eq('client_id', clientId)
-    .eq('designer_id', designerId);
-  const { data, error } = await supabase
-    .from('connections')
-    .insert([payload])
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  const result = await submitOrReopenInquiry(supabase, {
+    designerId,
+    clientName: payload?.client_name,
+    clientEmail: payload?.client_email,
+    clientPhone: payload?.client_phone,
+    message: payload?.message || "Inquiry submission",
+  });
+  return result.data || { id: result.connection_id, status: result.status, ...payload };
 };
 
 /** Update connection status. */
@@ -111,10 +110,9 @@ export const updateConnection = async (id, updates) => {
   if (error) throw error;
 };
 
-/** Delete a connection. */
+/** Archive a connection instead of physical deletion (preserves history). */
 export const deleteConnection = async (id) => {
-  const { error } = await supabase.from('connections').delete().eq('id', id);
-  if (error) throw error;
+  return archiveInquiry(supabase, id);
 };
 
 // ── Reviews ──────────────────────────────────────────────────────────────

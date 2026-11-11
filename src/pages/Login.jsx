@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { Mail, Lock, Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -9,6 +9,7 @@ import GoogleSignInButton from "../components/GoogleSignInButton";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [isResetMode, setIsResetMode] = useState(false); 
@@ -24,32 +25,70 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await signInWithPassword(formData.email, formData.password);
-      await queryClient.invalidateQueries({ queryKey: ['auth'] });
-      await queryClient.invalidateQueries({ queryKey: ['users'] });
+      const authData = await signInWithPassword(formData.email, formData.password);
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { data: userProfile } = await supabase
-          .from('users')
-          .select('role, profile_completed')
-          .eq('id', session.user.id)
-          .single();
+      // Explicitly wait for session to fully initialize before firing navigation
+      const {
+        data: { session: fetchedSession },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-        if (userProfile?.role === 'designer') {
-          window.location.href = "https://designers-v.netlify.app";
-          return;
+      const activeSession = authData?.session || fetchedSession;
+      if (sessionError || !activeSession?.user) {
+        throw new Error("Session initialization failed after login.");
+      }
+
+      // Synchronously set auth data in cache to prevent FOUC / false loading states
+      queryClient.setQueryData(["auth", "session"], activeSession);
+      queryClient.setQueryData(["auth", "user"], activeSession.user);
+      await queryClient.invalidateQueries({ queryKey: ["auth"] });
+      await queryClient.invalidateQueries({ queryKey: ["users"] });
+
+      let userProfile = null;
+      try {
+        const { data } = await supabase
+          .from("users")
+          .select("role, profile_completed")
+          .eq("id", activeSession.user.id)
+          .maybeSingle();
+        userProfile = data;
+        if (userProfile) {
+          queryClient.setQueryData(["users", activeSession.user.id], userProfile);
         }
+      } catch {
+        // non-blocking fallback
+      }
 
-        if (userProfile?.profile_completed === false) {
-          toast.success("Welcome back!");
-          navigate("/complete-profile");
-          return;
+      let isAdmin = userProfile?.role === "admin";
+      if (!isAdmin) {
+        try {
+          const { data: rpcAdmin } = await supabase.rpc("is_admin");
+          if (rpcAdmin === true) isAdmin = true;
+        } catch {
+          // ignore
         }
       }
 
+      if (isAdmin) {
+        toast.success("Welcome back, Admin!");
+        const destination = location.state?.from?.pathname || "/admin";
+        navigate(destination, { replace: true });
+        return;
+      }
+
+      if (userProfile?.role === "designer") {
+        window.location.href = "https://designers-v.netlify.app";
+        return;
+      }
+
+      if (userProfile?.profile_completed === false) {
+        toast.success("Welcome back!");
+        navigate("/complete-profile", { replace: true });
+        return;
+      }
+
       toast.success("Welcome back!");
-      navigate("/");
+      navigate(location.state?.from?.pathname || "/", { replace: true });
     } catch (error) {
       toast.error(error.message || "Login failed");
     } finally {

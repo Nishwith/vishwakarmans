@@ -63,16 +63,19 @@ const Connect = () => {
             <Loader2 className="animate-spin text-brand-accent" size={48} />
           </div>
         ) : connections.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center shadow-sm">
+          <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center shadow-sm flex flex-col items-center">
+            <div className="w-16 h-16 bg-orange-50 border border-orange-100 rounded-full flex items-center justify-center mb-4">
+              <MessageSquare size={30} className="text-brand-accent" />
+            </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              No connections yet
+              No inquiries yet
             </h2>
-            <p className="text-gray-500 mb-6">
-              Start browsing to find your designer.
+            <p className="text-gray-500 mb-6 text-sm max-w-sm">
+              You haven't requested any designer connections yet. Start browsing to find and contact verified studios.
             </p>
             <Link
               to="/designers"
-              className="inline-block bg-brand-accent text-white px-6 py-3 rounded-xl font-bold hover:bg-orange-600 transition-colors"
+              className="inline-block bg-brand-accent text-white px-6 py-3 rounded-xl font-bold hover:bg-orange-600 transition-colors shadow-md active:scale-95"
             >
               Find Designers
             </Link>

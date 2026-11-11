@@ -85,6 +85,14 @@ const Home = () => {
         if (mounted) setFeaturedDesigners((data || []).filter((designer) => isDesignerPubliclyEligible(designer)));
       } catch (err) {
         console.error("Error fetching featured:", err);
+        if (err?.status === 401 || err?.message?.toLowerCase().includes("jwt")) {
+          try {
+            await supabase.auth.signOut();
+          } catch {}
+          localStorage.clear();
+          sessionStorage.clear();
+        }
+        if (mounted) setFeaturedDesigners([]);
       } finally {
         if (mounted) setLoadingFeatured(false);
       }
@@ -292,42 +300,42 @@ const Home = () => {
                 <div key={i} className="h-96 bg-gray-200 rounded-3xl animate-pulse"></div>
               ))}
             </div>
-          ) : featuredDesigners.length > 0 ? (
+          ) : (featuredDesigners?.length || 0) > 0 ? (
             <div className="grid md:grid-cols-3 gap-10">
-              {featuredDesigners.map((designer, idx) => (
-                <RevealOnScroll key={designer.id} delay={idx * 150}>
+              {featuredDesigners?.map((designer, idx) => (
+                <RevealOnScroll key={designer?.id || idx} delay={idx * 150}>
                   <div className="group relative bg-white border border-gray-200 rounded-3xl p-10 hover:border-brand-accent/50 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 h-full flex flex-col items-center text-center">
                     <div className="absolute top-6 right-6 bg-white border border-gray-200 px-3 py-1.5 rounded-full text-xs font-bold text-gray-900 flex items-center gap-1 shadow-sm">
                       <Star size={12} className="text-yellow-500" fill="currentColor" />{" "}
-                      {designer.rating_avg > 0 ? designer.rating_avg.toFixed(1) : "New"}
+                      {(designer?.rating_avg || 0) > 0 ? designer.rating_avg.toFixed(1) : "New"}
                     </div>
 
                     <div className="w-32 h-32 rounded-full p-1 bg-gradient-to-tr from-brand-accent to-yellow-500 mb-8 group-hover:scale-105 transition-transform duration-500 shadow-lg">
                       <div className="w-full h-full rounded-full bg-white border-4 border-white overflow-hidden flex items-center justify-center relative">
-                        {designer.logo_url ? (
-                          <img loading="lazy" src={designer.logo_url} alt={designer.name} className="w-full h-full object-cover" />
+                        {designer?.logo_url ? (
+                          <img loading="lazy" src={designer.logo_url} alt={designer?.name || "Designer"} className="w-full h-full object-cover" />
                         ) : (
-                          <span className="text-5xl font-bold text-gray-300">{designer.name[0]}</span>
+                          <span className="text-5xl font-bold text-gray-300">{designer?.name?.[0] || "?"}</span>
                         )}
                       </div>
                     </div>
 
-                    <h3 className="text-2xl font-bold text-gray-900 mb-3">{designer.name}</h3>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-3">{designer?.name || "Unnamed Designer"}</h3>
 
                     <div className="flex flex-wrap justify-center gap-2 mb-10 w-full">
                       <span className="flex items-center gap-1.5 bg-gray-100/80 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-200 shadow-2xs">
                         <Building2 size={13} className="text-brand-accent shrink-0" />
                         <MapPin size={12} className="text-gray-500 shrink-0" />
-                        <span>{designer.city}</span>
+                        <span>{designer?.city || "Unknown City"}</span>
                       </span>
                       <span className="flex items-center gap-1.5 bg-brand-accent/5 text-brand-accent px-3 py-1 rounded-lg text-xs font-bold border border-brand-accent/10">
-                        {designer.designer_type === "commercial" ? <Briefcase size={12} /> : <HomeIcon size={12} />}
-                        <span className="capitalize">{designer.designer_type}</span>
+                        {designer?.designer_type === "commercial" ? <Briefcase size={12} /> : <HomeIcon size={12} />}
+                        <span className="capitalize">{designer?.designer_type || "Designer"}</span>
                       </span>
                     </div>
 
                     <Link
-                      to={`/designers/${designer.id}`}
+                      to={`/designers/${designer?.id}`}
                       className="mt-auto w-full py-4 rounded-xl border-2 border-brand-accent text-brand-accent font-bold hover:bg-brand-accent hover:text-white transition-all transform active:scale-95 flex items-center justify-center gap-2"
                     >
                       View Profile <ArrowRight size={18} />

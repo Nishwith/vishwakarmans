@@ -16,22 +16,30 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     try {
-      await signOut();
-      queryClient.clear();
       setIsOpen(false);
-      navigate("/login");
-    } catch {
-      // Fail silently or toast error
+      await signOut(queryClient, null, "/login");
+    } catch (error) {
+      console.warn("Server signout failed, forcing local cleanup", error);
+    } finally {
+      if (queryClient) {
+        queryClient.setQueryData(['auth', 'user'], null);
+        queryClient.setQueryData(['auth', 'session'], null);
+        queryClient.clear();
+      }
+      localStorage.clear();
+      sessionStorage.clear();
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
     }
   };
 
   const role = profile?.role || "client";
   const loading = userLoading || (user && profileLoading);
-
-
+  const isDesigner = role === "designer" || Boolean(profile?.designer);
 
   return (
-    <nav className="bg-white/95 backdrop-blur-lg border-b border-gray-200 relative md:sticky md:top-0 w-full z-[100] shadow-sm transition-all">
+    <nav className="bg-white/95 backdrop-blur-lg border-b border-gray-200 relative md:sticky md:top-0 w-full z-50 shadow-sm transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 md:h-20">
           <Link to="/" className="flex items-center gap-3 group">
@@ -46,12 +54,14 @@ const Navbar = () => {
           </Link>
 
           <div className="hidden md:flex items-center space-x-8">
-             <a
-              href="https://designers-v.netlify.app"
-              className="bg-orange-50 text-brand-accent px-4 py-1.5 rounded-full font-bold text-sm border border-orange-200 hover:bg-orange-100 transition-colors shadow-sm whitespace-nowrap"
-            >
-              Are you a designer? Join
-            </a>
+            {profile?.role !== "admin" && role !== "admin" && (
+              <a
+                href={isDesigner ? "https://designers-v.netlify.app/dashboard" : "https://designers-v.netlify.app"}
+                className="bg-orange-50 text-brand-accent px-4 py-1.5 rounded-full font-bold text-sm border border-orange-200 hover:bg-orange-100 transition-colors shadow-sm whitespace-nowrap"
+              >
+                {isDesigner ? "Go to Dashboard" : "Are you a designer? Join"}
+              </a>
+            )}
             <Link
               to="/"
               className="text-gray-600 hover:text-brand-accent font-semibold transition-colors"
@@ -98,10 +108,16 @@ const Navbar = () => {
                   </span>
                 </Link>
                 <button
-                  onClick={handleLogout}
-                  className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors p-2"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleLogout();
+                  }}
+                  className="flex items-center gap-1.5 text-gray-500 hover:text-red-600 font-semibold text-sm cursor-pointer transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50 border border-transparent hover:border-red-100"
+                  title="Logout"
                 >
-                  <LogOut size={20} />
+                  <LogOut size={16} />
+                  <span>Logout</span>
                 </button>
               </div>
             ) : (
@@ -156,13 +172,15 @@ const Navbar = () => {
           >
             Connections
           </Link>
-          <a
-            href="https://designers-v.netlify.app"
-            onClick={() => setIsOpen(false)}
-            className="block px-4 py-3 bg-orange-50 text-brand-accent font-bold rounded-xl border border-orange-200 text-center text-sm min-h-[44px] flex items-center justify-center"
-          >
-            Are you a designer? Join
-          </a>
+          {profile?.role !== "admin" && role !== "admin" && (
+            <a
+              href={isDesigner ? "https://designers-v.netlify.app/dashboard" : "https://designers-v.netlify.app"}
+              onClick={() => setIsOpen(false)}
+              className="block px-4 py-3 bg-orange-50 text-brand-accent font-bold rounded-xl border border-orange-200 text-center text-sm min-h-[44px] flex items-center justify-center"
+            >
+              {isDesigner ? "Go to Dashboard" : "Are you a designer? Join"}
+            </a>
+          )}
           {role === "admin" && (
             <Link
               to="/admin"
@@ -187,10 +205,14 @@ const Navbar = () => {
                   User Profile
                 </Link>
                 <button
-                  onClick={handleLogout}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleLogout();
+                  }}
                   className="text-red-500 w-full text-left font-bold px-4 py-3 flex items-center gap-3 hover:bg-red-50 rounded-xl transition-colors min-h-[44px]"
                 >
-                  <LogOut size={18} /> Sign Out
+                  <LogOut size={18} /> Logout
                 </button>
               </div>
             ) : (

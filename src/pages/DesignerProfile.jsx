@@ -9,6 +9,7 @@ import {
   Star,
   CheckCircle,
   ArrowLeft,
+  ArrowRight,
   Loader2,
   Video,
   Phone,
@@ -31,29 +32,21 @@ import {
   Tag,
   FolderGit2
 } from "lucide-react";
+// eslint-disable-next-line no-unused-vars
 import { motion } from "framer-motion";
 import LeadWizardModal from "../components/LeadWizardModal";
 import ProjectMaterialsList from "../components/ProjectMaterialsList";
 import { getRoomMaterials } from "../utils/projectMaterials";
 import { isDesignerPubliclyEligible } from "../utils/designerVisibility";
+import { submitOrReopenInquiry } from "../services/designerInquiryService";
+import {
+  loadPublicDesignerVideo,
+  getYouTubeEmbedUrl,
+  extractYouTubeVideoId,
+  PUBLIC_DESIGNER_PROFILE_COLUMNS,
+} from "../utils/publicDesignerVideo";
 
-// --- HELPER: SMART EMBED URL ---
-const getEmbedUrl = (url) => {
-  if (!url) return null;
-  try {
-    if (url.includes("youtube.com") || url.includes("youtu.be")) {
-      const videoId = url.split("v=")[1]?.split("&")[0] || url.split("/").pop();
-      return `https://www.youtube.com/embed/${videoId}`;
-    }
-    if (url.includes("vimeo.com")) {
-      const videoId = url.split("/").pop();
-      return `https://player.vimeo.com/video/${videoId}`;
-    }
-    return url;
-  } catch {
-    return null;
-  }
-};
+export { extractYouTubeVideoId, getYouTubeEmbedUrl };
 
 const parseProjectCategory = (catStr) => {
   try {
@@ -91,7 +84,7 @@ const PublicProjectCard = ({ project, onClick }) => {
       <div className="w-full aspect-video relative bg-gray-100 overflow-hidden shrink-0">
         <img 
           src={images[currentIndex]?.image_url || "/placeholder.jpg"} 
-          className="w-full h-full object-cover aspect-video transition-transform duration-700 group-hover:scale-105" 
+          className="w-full h-full object-cover aspect-video transition-transform duration-300 group-hover:scale-105 hover:scale-105" 
           alt={project.title} 
           loading="lazy"
         />
@@ -138,7 +131,7 @@ const PublicProjectCard = ({ project, onClick }) => {
   );
 };
 
-// --- SUB-COMPONENT: FULL SCREEN PROJECT DETAIL MODAL (z-200) ---
+// --- SUB-COMPONENT: FULL SCREEN PROJECT DETAIL MODAL (z-[100]) ---
 const ProjectDetailModal = ({ project, onClose }) => {
   const images = [...(project.project_images || [])].sort((a, b) => {
     if (a.is_cover && !b.is_cover) return -1;
@@ -181,7 +174,7 @@ const ProjectDetailModal = ({ project, onClose }) => {
     getRoomMaterials(project.room_materials, activeRoom).length > 0;
 
   return (
-    <div className="fixed inset-0 z-[200] bg-gray-900/80 backdrop-blur-md flex items-center justify-center p-2 md:p-6 animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[100] bg-gray-900/80 backdrop-blur-md flex items-center justify-center p-2 md:p-6 animate-in fade-in duration-300">
       <div className="bg-white w-full max-w-[90rem] h-[95vh] md:h-[85vh] rounded-3xl md:rounded-[2.5rem] overflow-hidden flex flex-col-reverse md:flex-row relative shadow-2xl animate-in zoom-in-95 duration-300">
         
         {/* Close Button */}
@@ -528,6 +521,8 @@ const DesignerProfile = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
   const [showLeadWizard, setShowLeadWizard] = useState(false);
+  const [publishedVideo1Url, setPublishedVideo1Url] = useState(null);
+  const [publishedVideo2Url, setPublishedVideo2Url] = useState(null);
 
   const viewLoggedRef = useRef(null);
 
@@ -545,8 +540,44 @@ const DesignerProfile = () => {
   // Unified state object
   const [connection, setConnection] = useState(null);
   const [clientProfile, setClientProfile] = useState(null);
+  const [connectedContact, setConnectedContact] = useState(null);
+  const [loadingContact, setLoadingContact] = useState(false);
 
   useEffect(() => {
+    let active = true;
+    const numericId = parseInt(id, 10);
+    if (connection?.status === "accepted" && !isNaN(numericId)) {
+      const fetchConnectedContact = async () => {
+        setLoadingContact(true);
+        try {
+          const { data, error } = await supabase.rpc("get_connected_designer_contact", {
+            p_designer_id: numericId,
+          });
+          if (error) throw error;
+          if (active && data) {
+            const contactObj = Array.isArray(data) ? data[0] : data;
+            setConnectedContact(contactObj);
+          }
+        } catch (err) {
+          console.error("Failed to fetch connected designer contact:", err);
+        } finally {
+          if (active) setLoadingContact(false);
+        }
+      };
+      fetchConnectedContact();
+    } else {
+      setConnectedContact(null);
+    }
+    return () => {
+      active = false;
+    };
+  }, [connection?.status, id]);
+
+  useEffect(() => {
+    let active = true;
+    setPublishedVideo1Url(null);
+    setPublishedVideo2Url(null);
+
     const fetchData = async () => {
       const {
         data: { user },
@@ -555,7 +586,7 @@ const DesignerProfile = () => {
 
       const { data: designerData, error } = await supabase
         .from("designers")
-        .select("*")
+        .select(`${PUBLIC_DESIGNER_PROFILE_COLUMNS}, video_link_1, video_link_2, video_link`)
         .eq("id", id)
         .single();
       if (error) {
@@ -567,6 +598,32 @@ const DesignerProfile = () => {
         return;
       }
       setDesigner(designerData);
+
+      if (designerData.videos_approved === true) {
+        const link1 = (designerData.video_link_1 || designerData.video_link || "").trim();
+        const link2 = (designerData.video_link_2 || "").trim();
+
+        let embed1 = link1 ? getYouTubeEmbedUrl(link1) : null;
+        const embed2 = link2 ? getYouTubeEmbedUrl(link2) : null;
+
+        if (!embed1) {
+          const { embedUrl: rpcEmbed } = await loadPublicDesignerVideo(
+            supabase,
+            designerData.id
+          );
+          if (rpcEmbed) embed1 = rpcEmbed;
+        }
+
+        if (active) {
+          setPublishedVideo1Url(embed1);
+          setPublishedVideo2Url(embed2);
+        }
+      } else {
+        if (active) {
+          setPublishedVideo1Url(null);
+          setPublishedVideo2Url(null);
+        }
+      }
 
       const { data: projectsData } = await supabase
         .from("designer_projects")
@@ -603,6 +660,9 @@ const DesignerProfile = () => {
       setLoading(false);
     };
     fetchData();
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   // Handle Connect to Nuke old row and create new Request
@@ -615,36 +675,19 @@ const DesignerProfile = () => {
 
     const formattedMessage = `Project Scope: ${leadDetails.scope}\nPreferred Style: ${leadDetails.style}\nBudget Range: ${leadDetails.budget}\nTimeline: ${leadDetails.timeline}\n\nClient Message:\n${leadDetails.message || "No additional message provided."}`;
 
-    const payload = {
-      client_id: currentUser.id,
-      designer_id: id,
-      status: "pending",
-      client_name: clientProfile?.full_name || currentUser.user_metadata?.full_name || "Homeowner",
-      client_email: currentUser.email,
-      client_phone: clientProfile?.phone || "Not provided",
-      message: formattedMessage,
-      updated_at: new Date().toISOString()
-    };
-
     try {
-      // 💥 physically clear out old row so connection is fresh 
-      await supabase
-        .from("connections")
-        .delete()
-        .eq("client_id", currentUser.id)
-        .eq("designer_id", id);
+      // Option B: Atomic submit or reopen inquiry
+      const result = await submitOrReopenInquiry(supabase, {
+        designerId: id,
+        clientName: clientProfile?.full_name || currentUser.user_metadata?.full_name || "Homeowner",
+        clientEmail: currentUser.email,
+        clientPhone: clientProfile?.phone || "Not provided",
+        message: formattedMessage,
+      });
 
-      const { data, error } = await supabase
-        .from("connections")
-        .insert([payload])
-        .select()
-        .single();
-        
-      if (error) throw error;
-      
-      setConnection(data);
+      setConnection(result.data || { id: result.connection_id, status: result.status });
       setShowLeadWizard(false);
-      toast.success("New connection request sent!");
+      toast.success(result.action === "reopened" ? "Connection request reopened!" : "New connection request sent!");
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -699,10 +742,10 @@ const DesignerProfile = () => {
       initial="hidden" 
       animate="visible" 
       variants={containerVariants}
-      className="min-h-screen bg-gray-50 px-4 py-6 md:px-8 md:py-10 overflow-hidden"
+      className="min-h-screen bg-gray-50 px-4 py-4 md:px-8 md:py-6 overflow-hidden"
     >
       {/* HEADER */}
-      <motion.div variants={itemVariants} className="relative bg-white border-b border-gray-100 pb-6 pt-0 px-4 sm:px-6 shadow-sm rounded-3xl">
+      <motion.div variants={itemVariants} className="relative bg-white border-b border-gray-100 pb-6 pt-2 px-4 sm:px-6 shadow-sm rounded-3xl">
         <div className="max-w-6xl mx-auto">
           <button
             onClick={() => navigate(-1)}
@@ -741,16 +784,16 @@ const DesignerProfile = () => {
                       </span>
                     )}
                   </h1>
-                  <div className="flex flex-wrap justify-center md:justify-start items-center gap-4 mt-3 text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <MapPin size={18} /> {designer.city}
+                  <div className="flex flex-wrap justify-center md:justify-start items-center gap-3 mt-3 text-gray-500">
+                    <span className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
+                      <MapPin size={15} className="text-brand-accent" /> {designer.city}
                     </span>
                     <span
-                      className={`text-xs uppercase font-bold px-3 py-1 rounded-full border flex items-center gap-2 ${
+                      className={`text-xs uppercase font-bold px-3 py-1 rounded-full border flex items-center gap-1.5 ${
                         designer.designer_type === "commercial"
-                          ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                          ? "bg-blue-50 text-blue-700 border-blue-200"
                           : designer.designer_type === "both"
-                          ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                          ? "bg-purple-50 text-purple-700 border-purple-200"
                           : "bg-brand-accent/10 text-brand-accent border-brand-accent/20"
                       }`}
                     >
@@ -768,23 +811,17 @@ const DesignerProfile = () => {
                         : "Interior Designer"}
                     </span>
                   </div>
+
+                 
                   
                 </div>
                 <div className="w-full md:w-auto mt-4 md:mt-0">
-                  {connection?.status === "accepted" ? (
-                    <button className="w-full md:w-auto px-6 py-3 bg-green-500/10 text-green-600 border border-green-500/30 rounded-xl font-bold flex items-center justify-center gap-2 cursor-default min-h-[48px]">
-                      <CheckCircle size={20} /> Connected
-                    </button>
-                  ) : connection?.status === "on_hold" ? (
-                    <button disabled className="w-full md:w-auto px-6 py-3 bg-orange-50 text-orange-600 border border-orange-200 rounded-xl font-bold flex items-center justify-center gap-2 cursor-not-allowed min-h-[48px]">
-                      <Clock size={18} /> Request On Hold
-                    </button>
-                  ) : connection?.status === "pending" ? (
+                  {connection?.status && ["pending", "on_hold", "hold", "accepted", "active"].includes(connection.status) ? (
                     <button
-                      disabled
-                      className="w-full md:w-auto px-6 py-3 bg-gray-100 text-gray-500 border border-gray-200 rounded-xl font-bold cursor-not-allowed min-h-[48px] flex items-center justify-center"
+                      onClick={() => navigate("/connect")}
+                      className="w-full md:w-auto px-6 py-3 bg-brand-accent/10 hover:bg-brand-accent/20 text-brand-accent border border-brand-accent/30 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors min-h-[48px]"
                     >
-                      Request Sent
+                      <CheckCircle size={18} /> Go to Connections
                     </button>
                   ) : (
                     <button
@@ -906,36 +943,38 @@ const DesignerProfile = () => {
           )}
 
           {/* --- VIDEO SECTION --- */}
-          {(designer.video_link || designer.video_link_2) && (
+          {designer?.videos_approved && (publishedVideo1Url || publishedVideo2Url) && (
             <motion.div variants={itemVariants} className="bg-white border border-gray-100 rounded-3xl p-8 shadow-sm hover:shadow-md transition-shadow">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center gap-2">
                 <Play size={24} className="text-brand-accent" /> Video Showcase
               </h2>
-              <div
-                className={`grid gap-6 ${
-                  designer.video_link && designer.video_link_2
-                    ? "grid-cols-1 md:grid-cols-2"
-                    : "grid-cols-1"
-                }`}
-              >
-                {designer.video_link && (
-                  <div className="aspect-video bg-black rounded-2xl overflow-hidden border border-gray-200 shadow-lg">
-                    <iframe
-                      src={getEmbedUrl(designer.video_link)}
-                      className="w-full h-full"
-                      title="Video 1"
-                      allowFullScreen
-                    ></iframe>
+              <div className={`grid grid-cols-1 ${publishedVideo1Url && publishedVideo2Url ? "md:grid-cols-2" : "max-w-3xl"} gap-6`}>
+                {publishedVideo1Url && (
+                  <div className="space-y-2">
+                    <div className="aspect-video bg-black rounded-2xl overflow-hidden border border-gray-200 shadow-md">
+                      <iframe
+                        src={publishedVideo1Url}
+                        className="w-full h-full"
+                        title="Designer video showcase 1"
+                        allowFullScreen
+                        loading="lazy"
+                        referrerPolicy="strict-origin-when-cross-origin"
+                      ></iframe>
+                    </div>
                   </div>
                 )}
-                {designer.video_link_2 && (
-                  <div className="aspect-video bg-black rounded-2xl overflow-hidden border border-gray-200 shadow-lg">
-                    <iframe
-                      src={getEmbedUrl(designer.video_link_2)}
-                      className="w-full h-full"
-                      title="Video 2"
-                      allowFullScreen
-                    ></iframe>
+                {publishedVideo2Url && (
+                  <div className="space-y-2">
+                    <div className="aspect-video bg-black rounded-2xl overflow-hidden border border-gray-200 shadow-md">
+                      <iframe
+                        src={publishedVideo2Url}
+                        className="w-full h-full"
+                        title="Designer video showcase 2"
+                        allowFullScreen
+                        loading="lazy"
+                        referrerPolicy="strict-origin-when-cross-origin"
+                      ></iframe>
+                    </div>
                   </div>
                 )}
               </div>
@@ -948,7 +987,11 @@ const DesignerProfile = () => {
               currentUser={currentUser}
               connectionStatus={connection?.status}
               onReviewSubmitted={async () => {
-                const { data } = await supabase.from("designers").select("*").eq("id", id).single();
+                const { data } = await supabase
+                  .from("designers")
+                  .select(PUBLIC_DESIGNER_PROFILE_COLUMNS)
+                  .eq("id", id)
+                  .single();
                 if (data) setDesigner(data);
               }}
             />
@@ -957,49 +1000,52 @@ const DesignerProfile = () => {
 
         {/* CONTACT BOX */}
         <motion.div variants={itemVariants} className="lg:col-span-1">
-          <div className="sticky top-28 bg-white border border-gray-100 rounded-3xl p-8 shadow-xl">
+          <div className="sticky top-24 bg-white border border-gray-200/90 rounded-3xl p-6 sm:p-8 shadow-xl">
             <h3 className="text-2xl font-bold text-gray-900 mb-2">Interested?</h3>
             <p className="text-gray-500 text-sm mb-6">
               Connect with {designer.name} to start your project.
             </p>
             
-            {connection?.status === "accepted" || connection?.status === "on_hold" ? (
+            {connection?.status && ["pending", "on_hold", "hold", "accepted", "active"].includes(connection.status) ? (
               <div className="space-y-4">
-                <div className="p-4 bg-green-50 border border-green-100 rounded-xl">
-                  <h4 className="font-bold text-green-700 mb-2 flex items-center gap-2">
-                    <CheckCircle size={16} /> Contact Details
-                  </h4>
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <p>📧 {designer.email}</p>
-                    <p>📞 {designer.phone}</p>
+                <div className="p-4 bg-orange-50/70 border border-orange-100 rounded-xl">
+                  <div className="flex items-center gap-2 text-brand-accent font-bold text-sm mb-1">
+                    <CheckCircle size={16} /> Active Request
                   </div>
+                  <p className="text-xs text-gray-600">
+                    You already have an existing connection inquiry ({connection.status}) with {designer.name}.
+                  </p>
                 </div>
                 <button
                   onClick={() => navigate("/connect")}
-                  className="w-full py-3 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl font-bold hover:bg-gray-100 transition-colors"
+                  className="w-full py-3.5 bg-brand-accent hover:bg-orange-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
                 >
-                  Go to My Connections
+                  <ArrowRight size={16} /> Go to Connections
                 </button>
               </div>
             ) : (
-              <button
-                onClick={() => currentUser ? setShowLeadWizard(true) : navigate("/login")}
-                // Block button if Pending
-                disabled={isSending || connection?.status === "pending"}
-                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 ${
-                  connection?.status === "pending"
-                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                    : "bg-brand-accent hover:bg-orange-600 text-white shadow-lg"
-                }`}
-              >
-                {isSending ? (
-                  <Loader2 className="animate-spin" />
-                ) : connection?.status === "pending" ? (
-                  "Request Pending..."
-                ) : (
-                  "Send Connection Request"
-                )}
-              </button>
+              <div className="space-y-4">
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                  <div className="flex items-start gap-2.5">
+                    <Lock size={16} className="text-gray-400 mt-0.5 shrink-0" />
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                      Contact details will be revealed once the designer accepts your connection request.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => currentUser ? setShowLeadWizard(true) : navigate("/login")}
+                  disabled={isSending}
+                  className="w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 bg-brand-accent hover:bg-orange-600 text-white shadow-lg transition-all"
+                >
+                  {isSending ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    "Send Connection Request"
+                  )}
+                </button>
+              </div>
             )}
           </div>
         </motion.div>
@@ -1007,9 +1053,9 @@ const DesignerProfile = () => {
 
       {/* MOBILE STICKY ACTION BAR */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-gray-200 z-40 shadow-2xl">
-        {connection?.status === "accepted" ? (
-          <button onClick={() => navigate("/connect")} className="w-full py-3 bg-green-500 text-white rounded-xl font-bold flex items-center justify-center gap-2 min-h-[48px]">
-            <CheckCircle size={18} /> View Connection
+        {connection?.status && ["pending", "on_hold", "hold", "accepted", "active"].includes(connection.status) ? (
+          <button onClick={() => navigate("/connect")} className="w-full py-3 bg-brand-accent text-white rounded-xl font-bold flex items-center justify-center gap-2 min-h-[48px]">
+            <CheckCircle size={18} /> Go to Connections
           </button>
         ) : (
           <button
@@ -1018,14 +1064,10 @@ const DesignerProfile = () => {
               if (!clientProfile?.profile_completed || !clientProfile?.phone) return navigate("/complete-profile");
               setShowLeadWizard(true);
             }}
-            disabled={isSending || connection?.status === "pending"}
-            className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 min-h-[48px] ${
-              connection?.status === "pending"
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-brand-accent text-white shadow-lg"
-            }`}
+            disabled={isSending}
+            className="w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 min-h-[48px] bg-brand-accent text-white shadow-lg"
           >
-            {isSending ? <Loader2 className="animate-spin" /> : connection?.status === "pending" ? "Request Pending..." : "Connect Now"}
+            {isSending ? <Loader2 className="animate-spin" /> : "Connect Now"}
           </button>
         )}
       </div>

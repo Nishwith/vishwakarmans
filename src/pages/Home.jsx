@@ -23,6 +23,7 @@ import {
 import { supabase } from "../supabaseClient";
 import { useCurrentUser, useUserProfile } from "../hooks/useAuth";
 import { isDesignerPubliclyEligible } from "../utils/designerVisibility";
+import SEO from "../components/SEO";
 
 // --- HELPER COMPONENT FOR SCROLL ANIMATIONS ---
 const RevealOnScroll = ({ children, delay = 0 }) => {
@@ -114,6 +115,12 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-white text-gray-900 overflow-x-hidden">
+      <SEO
+        canonical="https://vishwakarmans.com"
+        description="Discover and hire top-rated interior, exterior, and commercial designers on Vishwakarmans. Browse premium portfolios and transform your space today."
+        keywords="Vishwakarmans, interior designers India, commercial architects, hire interior designers, Vishwakarmans marketplace"
+        title="Vishwakarmans | Premium Interior & Commercial Designers"
+      />
       
       {/* 1. HERO SECTION */}
       <div className="relative min-h-[calc(100vh-4rem)] lg:min-h-[75vh] xl:min-h-[88vh] py-12 lg:py-16 flex flex-col items-center justify-center text-center px-4 overflow-hidden border-b border-gray-200">

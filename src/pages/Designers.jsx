@@ -120,7 +120,18 @@ const CityDropdown = ({ selectedCity, setSelectedCity, cities }) => {
   );
 };
 
-const Designers = () => {
+const Designers = ({
+  formattedCity,
+  city,
+  initialCity,
+  category,
+  mappedCategory,
+  initialCategory,
+  hideHeader = false,
+} = {}) => {
+  const propCity = formattedCity || city || initialCity;
+  const propCategory = mappedCategory || category || initialCategory;
+
   const { data: user } = useCurrentUser();
   const { data: profile } = useUserProfile(user?.id);
   const { getPosition, coordinates, permissionDenied } = useGeolocation();
@@ -132,8 +143,8 @@ const Designers = () => {
 
   // PRIMARY FILTERS & SORTING
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCity, setSelectedCity] = useState(() => profile?.city || "All");
-  const [selectedType, setSelectedType] = useState("All");
+  const [selectedCity, setSelectedCity] = useState(() => propCity || profile?.city || "All");
+  const [selectedType, setSelectedType] = useState(() => propCategory || "All");
   const [sortBy, setSortBy] = useState("featured"); // "featured", "distance", "rating", "experience"
 
   // PAGINATION
@@ -165,7 +176,8 @@ const Designers = () => {
     "Delhi",
     "Chennai",
     "Kolkata",
-    ...(profile?.city && !["Hyderabad", "Bangalore", "Mumbai", "Delhi", "Chennai", "Kolkata"].includes(profile.city) ? [profile.city] : []),
+    ...(propCity && !["All", "Hyderabad", "Bangalore", "Mumbai", "Delhi", "Chennai", "Kolkata"].includes(propCity) ? [propCity] : []),
+    ...(profile?.city && !["Hyderabad", "Bangalore", "Mumbai", "Delhi", "Chennai", "Kolkata", propCity].includes(profile.city) ? [profile.city] : []),
   ];
 
   const categoryPills = [
@@ -204,10 +216,18 @@ const Designers = () => {
   ];
 
   useEffect(() => {
-    if (profile?.city) {
+    if (propCity) {
+      setSelectedCity(propCity);
+    } else if (profile?.city) {
       setSelectedCity(profile.city);
     }
-  }, [profile?.city]);
+  }, [propCity, profile?.city]);
+
+  useEffect(() => {
+    if (propCategory) {
+      setSelectedType(propCategory);
+    }
+  }, [propCategory]);
 
   useEffect(() => {
     const categoryParam = searchParams.get("category");
@@ -246,7 +266,7 @@ const Designers = () => {
       const now = new Date();
       const validDesigners = (data || []).filter((designer) => isDesignerPubliclyEligible(designer, now));
 
-      // Sort Active Featured Designers to top
+      // Sort Active Featured Designers to top with deterministic tiebreaker
       validDesigners.sort((a, b) => {
         const isAFeatured =
           a.featured_status === "featured" &&
@@ -259,7 +279,11 @@ const Designers = () => {
 
         if (isAFeatured && !isBFeatured) return -1;
         if (!isAFeatured && isBFeatured) return 1;
-        return 0;
+        return (
+          (Number(b.priority_score) || 0) - (Number(a.priority_score) || 0) ||
+          (Number(b.rating_avg) || 0) - (Number(a.rating_avg) || 0) ||
+          String(a.id).localeCompare(String(b.id))
+        );
       });
 
       if (append) {
@@ -353,12 +377,15 @@ const Designers = () => {
 
       // 2. City
       const matchesCity =
-        selectedCity === "All" || selectedCity === "Other" || designer.city === selectedCity;
+        selectedCity === "All" ||
+        selectedCity === "Other" ||
+        (designer.city && designer.city.toLowerCase() === selectedCity.toLowerCase());
 
       // 3. Category / Designer Type
       const matchesType =
         selectedType === "All" ||
-        designer.designer_type === selectedType ||
+        selectedType.toLowerCase() === "all" ||
+        (designer.designer_type && designer.designer_type.toLowerCase() === selectedType.toLowerCase()) ||
         designer.designer_type === "both";
 
       // 4. Minimum Rating
@@ -408,18 +435,49 @@ const Designers = () => {
       return { ...d, dist_meters: distanceMeters };
     });
 
-    // Apply Sorting
+    // Apply Sorting with deterministic fallback condition
     if (sortBy === "distance") {
       enrichedList.sort((a, b) => {
-        if (a.dist_meters == null && b.dist_meters == null) return 0;
+        if (a.dist_meters == null && b.dist_meters == null) {
+          return String(a.id).localeCompare(String(b.id));
+        }
         if (a.dist_meters == null) return 1;
         if (b.dist_meters == null) return -1;
-        return a.dist_meters - b.dist_meters;
+        return a.dist_meters - b.dist_meters || String(a.id).localeCompare(String(b.id));
       });
     } else if (sortBy === "rating") {
-      enrichedList.sort((a, b) => (b.rating_avg || 0) - (a.rating_avg || 0));
+      enrichedList.sort(
+        (a, b) =>
+          (Number(b.rating_avg) || 0) - (Number(a.rating_avg) || 0) ||
+          String(a.id).localeCompare(String(b.id))
+      );
     } else if (sortBy === "experience") {
-      enrichedList.sort((a, b) => (b.experience_years || 0) - (a.experience_years || 0));
+      enrichedList.sort(
+        (a, b) =>
+          (Number(b.experience_years) || 0) - (Number(a.experience_years) || 0) ||
+          String(a.id).localeCompare(String(b.id))
+      );
+    } else {
+      // "featured" default sorting
+      enrichedList.sort((a, b) => {
+        const now = new Date();
+        const isAFeatured =
+          a.featured_status === "featured" &&
+          a.featured_expiry &&
+          new Date(a.featured_expiry) > now;
+        const isBFeatured =
+          b.featured_status === "featured" &&
+          b.featured_expiry &&
+          new Date(b.featured_expiry) > now;
+
+        if (isAFeatured && !isBFeatured) return -1;
+        if (!isAFeatured && isBFeatured) return 1;
+        return (
+          (Number(b.priority_score) || 0) - (Number(a.priority_score) || 0) ||
+          (Number(b.rating_avg) || 0) - (Number(a.rating_avg) || 0) ||
+          String(a.id).localeCompare(String(b.id))
+        );
+      });
     }
 
     return enrichedList;
@@ -451,14 +509,16 @@ const Designers = () => {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-6 md:px-8 md:py-10">
       {/* HEADER */}
-      <div className="max-w-7xl mx-auto mb-8 md:mb-10 text-center">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-4 animate-fade-in">
-          Find Your Perfect <span className="text-brand-accent">Designer</span>
-        </h1>
-        <p className="text-gray-500 text-base sm:text-lg max-w-2xl mx-auto">
-          Browse verified top-tier designers for your dream home or office space.
-        </p>
-      </div>
+      {!hideHeader && (
+        <div className="max-w-7xl mx-auto mb-8 md:mb-10 text-center">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-4 animate-fade-in">
+            Find Your Perfect <span className="text-brand-accent">Designer</span>
+          </h1>
+          <p className="text-gray-500 text-base sm:text-lg max-w-2xl mx-auto">
+            Browse verified top-tier designers for your dream home or office space.
+          </p>
+        </div>
+      )}
 
       {/* FILTER CONTROL CARD */}
       <div className="max-w-7xl mx-auto bg-white border border-gray-200 rounded-3xl p-5 md:p-6 mb-8 shadow-xl sticky top-4 md:top-20 z-30 backdrop-blur-xl bg-white/95">
@@ -491,7 +551,7 @@ const Designers = () => {
           {/* Category Tabs/Pills */}
           <div className="flex items-center gap-1.5 p-1 bg-gray-100/80 rounded-xl border border-gray-200 shrink-0 overflow-x-auto">
             {categoryPills.map((pill) => {
-              const active = selectedType === pill.value;
+              const active = selectedType.toLowerCase() === pill.value.toLowerCase();
               return (
                 <button
                   key={pill.value}
@@ -666,23 +726,13 @@ const Designers = () => {
         </AnimatePresence>
       </div>
 
-      {/* DISTANCE SORT STATUS BAR */}
+      
+
+      {/* Distance status badge */}
       {sortBy === "distance" && (
-        <div className="max-w-7xl mx-auto mb-6 flex flex-wrap items-center gap-3">
-          <div className="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 animate-fade-in shadow-xs">
-            <CheckCircle size={14} className="text-emerald-600" />
-            <span>
-              Sorted by distance (near to far) {userCoords?.isFallback ? "• Default: Hyderabad" : "• Live GPS"}
-            </span>
-            <button
-              type="button"
-              onClick={handleClearNearby}
-              className="ml-2 hover:text-emerald-950 font-bold"
-              title="Reset to default sort"
-            >
-              ✕
-            </button>
-          </div>
+        <div className="max-w-7xl mx-auto mb-4 flex items-center gap-2 text-sm text-gray-600 bg-orange-50/80 border border-orange-200/60 px-4 py-2 rounded-xl">
+          <Navigation size={16} className="text-brand-accent animate-pulse" />
+          <span>Sorted by distance from your location</span>
         </div>
       )}
 

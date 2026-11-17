@@ -8,6 +8,7 @@ import React, { Suspense, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Home from "./pages/Home";
 import Designers from "./pages/Designers";
+import CityCategoryPage from "./pages/CityCategoryPage";
 import DesignerProfile from "./pages/DesignerProfile";
 import CompareDesigners from "./pages/CompareDesigners";
 import Login from "./pages/Login";
@@ -100,6 +101,7 @@ function App() {
             {/* Public */}
             <Route path="/" element={<Home />} />
             <Route path="/designers" element={<Designers />} />
+            <Route path="/designers/:category/:city" element={<CityCategoryPage />} />
             <Route path="/designers/:id" element={<DesignerProfile />} />
             <Route path="/compare" element={<CompareDesigners />} />
             <Route path="/aboutcontact" element={<AboutContact />} />

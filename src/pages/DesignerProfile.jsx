@@ -36,6 +36,7 @@ import {
 import { motion } from "framer-motion";
 import LeadWizardModal from "../components/LeadWizardModal";
 import ProjectMaterialsList from "../components/ProjectMaterialsList";
+import SEO from "../components/SEO";
 import { getRoomMaterials } from "../utils/projectMaterials";
 import { isDesignerPubliclyEligible } from "../utils/designerVisibility";
 import { submitOrReopenInquiry } from "../services/designerInquiryService";
@@ -737,6 +738,20 @@ const DesignerProfile = () => {
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
   };
 
+  const firmName = designer.firm_name || designer.name;
+  const dynamicDescription = `${firmName} offers premium architecture, interior, exterior, and commercial design services in ${designer.city || 'India'}.`;
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "HomeAndConstructionBusiness",
+    name: firmName,
+    image: designer.profile_image || designer.logo_url,
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: designer.city,
+      addressCountry: "IN",
+    },
+  };
+
   return (
     <motion.div 
       initial="hidden" 
@@ -744,6 +759,11 @@ const DesignerProfile = () => {
       variants={containerVariants}
       className="min-h-screen bg-gray-50 px-4 py-4 md:px-8 md:py-6 overflow-hidden"
     >
+      <SEO 
+        title={`${firmName} | Top Designer in ${designer.city || 'India'}`} 
+        description={dynamicDescription} 
+        schema={schema} 
+      />
       {/* HEADER */}
       <motion.div variants={itemVariants} className="relative bg-white border-b border-gray-100 pb-6 pt-2 px-4 sm:px-6 shadow-sm rounded-3xl">
         <div className="max-w-6xl mx-auto">

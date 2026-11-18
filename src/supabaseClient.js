@@ -7,7 +7,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 if (typeof window !== "undefined" && typeof supabase?.auth?.onAuthStateChange === "function") {
   supabase.auth.onAuthStateChange(async (event, session) => {
     // Task 4: Diagnostics
-    console.log("Auth State:", { event, session });
 
     const isExpired = session?.expires_at ? session.expires_at < Date.now() / 1000 : false;
     const isInvalid = !session || isExpired;

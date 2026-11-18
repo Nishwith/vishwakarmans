@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { uploadToR2, deleteFromR2, resolveMediaUrl } from "../utils/r2Storage";
 import {
   Users,
   CheckCircle,
@@ -125,7 +126,7 @@ const FeatureRequestModal = ({ designer, onClose, onApprove, onReject }) => {
             <div className="w-20 h-20 rounded-2xl bg-white border border-gray-300 overflow-hidden shrink-0 shadow-sm">
               {designer?.logo_url ? (
                 <img
-                  src={designer.logo_url}
+                  src={resolveMediaUrl(designer.logo_url)}
                   alt={designer?.name || "Logo"}
                   className="w-full h-full object-cover"
                 />
@@ -275,7 +276,7 @@ const ReviewModal = ({ designer, onClose, onApprove, onReject }) => {
             <div className="w-24 h-24 rounded-2xl bg-gray-50 border-2 border-gray-300 overflow-hidden shrink-0 mx-auto md:mx-0 shadow-inner">
               {designer?.logo_url ? (
                 <img
-                  src={designer.logo_url}
+                  src={resolveMediaUrl(designer.logo_url)}
                   alt={designer?.name || "logo"}
                   className="w-full h-full object-cover"
                 />
@@ -485,7 +486,7 @@ const ActiveDesignerCard = ({
         <div className="flex gap-4 items-center w-full">
           <div className="w-12 h-12 rounded-full bg-gray-50 border-2 border-gray-300 overflow-hidden shrink-0 relative">
             {d?.logo_url ? (
-              <img src={d.logo_url} alt="logo" className="w-full h-full object-cover" />
+              <img src={resolveMediaUrl(d.logo_url)} alt="logo" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-slate-500">
                 {d?.name?.[0] || "?"}
@@ -753,7 +754,7 @@ const OverviewTab = ({
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-12 h-12 rounded-xl bg-white border border-gray-200 overflow-hidden shrink-0 shadow-inner flex items-center justify-center">
                     {d?.logo_url ? (
-                      <img src={d.logo_url} alt={d?.name || "Logo"} className="w-full h-full object-cover" />
+                      <img src={resolveMediaUrl(d.logo_url)} alt={d?.name || "Logo"} className="w-full h-full object-cover" />
                     ) : (
                       <span className="font-bold text-gray-400 text-lg">{d?.name?.[0] || "?"}</span>
                     )}
@@ -826,7 +827,7 @@ const OverviewTab = ({
                           <div className="flex items-center gap-3">
                             {d?.logo_url ? (
                               <img
-                                src={d.logo_url}
+                                src={resolveMediaUrl(d.logo_url)}
                                 className="w-8 h-8 rounded-full bg-gray-100 object-cover"
                                 alt=""
                               />
@@ -960,11 +961,7 @@ const AdminOnboardDesigner = ({ onSuccess }) => {
     try {
       let logoUrl = "";
       if (logoFile) {
-        const fileExt = logoFile.name.split('.').pop() || 'png';
-        const fileName = `logos/admin_upload_${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from("portfolio").upload(fileName, logoFile);
-        if (uploadError) throw uploadError;
-        logoUrl = supabase.storage.from("portfolio").getPublicUrl(fileName).data.publicUrl;
+        logoUrl = await uploadToR2(logoFile, "logos");
       }
 
       const payload = {
@@ -1474,18 +1471,29 @@ const AdminDashboard = () => {
         return;
       }
 
-      let appsQuery = supabase
-        .from("designer_applications")
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-      if (typeof appsQuery.range === "function") appsQuery = appsQuery.range(0, 99);
+      // Task 1: Strict separation between Requests Queue (onboarding completed, profile incomplete)
+      // and Verify Profiles Queue (profile completed, awaiting verification).
+      const fetchRequests = () => {
+        let query = supabase
+          .from("designer_applications")
+          .select("*")
+          .eq("status", "pending")
+          .order("created_at", { ascending: false });
+        if (typeof query.range === "function") query = query.range(0, 99);
+        return query;
+      };
 
-      let designersQuery = supabase
-        .from("designers")
-        .select("*, designer_projects(count)")
-        .order("created_at", { ascending: false });
-      if (typeof designersQuery.range === "function") designersQuery = designersQuery.range(0, 99);
+      const fetchVerifications = () => {
+        let query = supabase
+          .from("designers")
+          .select("*, designer_projects(count)")
+          .order("created_at", { ascending: false });
+        if (typeof query.range === "function") query = query.range(0, 99);
+        return query;
+      };
+
+      let appsQuery = fetchRequests();
+      let designersQuery = fetchVerifications();
 
       let msgsQuery = supabase
         .from("contact_messages")
@@ -1545,13 +1553,43 @@ const AdminDashboard = () => {
     [data?.designers]
   );
 
+  // Helper to determine if a designer completed /complete-profile
+  const isProfileComplete = (d) => {
+    if (!d) return false;
+    const hasAbout = Boolean(d?.about_text && String(d.about_text).trim().length > 0);
+    const hasProjects = d?.projects_completed !== null && d?.projects_completed !== undefined;
+    return Boolean(d?.profile_completed || (hasAbout && hasProjects));
+  };
+
+  // "Requests" Queue: ONLY designers who completed /onboarding but NOT /complete-profile
+  const pendingRequests = useMemo(() => {
+    const completedOrVerifiedUserIds = new Set(
+      (data?.designers || [])
+        .filter((d) => d?.is_verified || d?.verified || isProfileComplete(d))
+        .map((d) => d?.user_id)
+        .filter(Boolean)
+    );
+    return (data?.applications || []).filter(
+      (app) => !completedOrVerifiedUserIds.has(app?.user_id)
+    );
+  }, [data?.applications, data?.designers]);
+
+  // "Verify Profile" Queue: ONLY designers who completed /complete-profile and are ready for final approval
+  const pendingProfiles = useMemo(
+    () =>
+      (data?.designers || []).filter(
+        (d) => !d?.is_verified && !d?.verified && isProfileComplete(d)
+      ),
+    [data?.designers]
+  );
+
   const stats = useMemo(
     () => ({
       totalClients: data?.totalClients || 0,
       totalDesigners: data?.totalDesigners || 0,
       verifiedDesigners: data?.verifiedDesigners || 0,
-      collab: (data?.applications || []).length,
-      pending: (data?.designers || []).filter((d) => !d?.is_verified).length,
+      collab: pendingRequests.length,
+      pending: pendingProfiles.length,
       active: (data?.designers || []).filter((d) => d?.is_verified).length,
       videoPending: pendingVideoDesigners.length,
       requests: (data?.designers || []).filter(
@@ -1562,12 +1600,7 @@ const AdminDashboard = () => {
       ).length,
       messages: (data?.messages || []).filter((m) => m?.status === "new").length,
     }),
-    [data, pendingVideoDesigners]
-  );
-
-  const pendingProfiles = useMemo(
-    () => (data?.designers || []).filter((d) => !d?.is_verified),
-    [data?.designers]
+    [data, pendingVideoDesigners, pendingRequests, pendingProfiles]
   );
   const activeProfiles = useMemo(
     () => (data?.designers || []).filter((d) => d?.is_verified),
@@ -1650,8 +1683,8 @@ const AdminDashboard = () => {
 
   const paginatedApplications = useMemo(() => {
     const start = (appsPage - 1) * ADMIN_PAGE_SIZE;
-    return (data?.applications || []).slice(start, start + ADMIN_PAGE_SIZE);
-  }, [data?.applications, appsPage]);
+    return (pendingRequests || []).slice(start, start + ADMIN_PAGE_SIZE);
+  }, [pendingRequests, appsPage]);
 
   const paginatedMessages = useMemo(() => {
     const start = (inboxPage - 1) * ADMIN_PAGE_SIZE;
@@ -1987,29 +2020,46 @@ const AdminDashboard = () => {
   // --- Update Designer Approval (Paywall Active) ---
   const handlePublishProfile = async (id) => {
     const toastId = toast.loading("Approving...");
+    const parsedId = Number(id);
+    const targetId = !isNaN(parsedId) ? parsedId : id;
 
-    setData((prev) => ({
-      ...prev,
-      designers: (prev?.designers || []).map((d) =>
-        d.id === id ? { 
-          ...d, 
-          is_verified: true, 
-          is_subscription_active: false,
-          subscription_end: null,
-          is_public: false
-        } : d
-      ),
-    }));
-    setReviewingDesigner(null);
-    setActiveTab("active");
     try {
-      await verifyDesignerProfile(supabase, id);
+      let updateError = null;
+      try {
+        await verifyDesignerProfile(supabase, targetId);
+      } catch (rpcErr) {
+        console.warn("RPC verification failed, using direct update:", rpcErr);
+        const { error } = await supabase
+          .from("designers")
+          .update({ is_verified: true, verified: true })
+          .eq("id", targetId);
+        if (error) updateError = error;
+      }
+
+      if (updateError) throw updateError;
+
+      setData((prev) => ({
+        ...prev,
+        designers: (prev?.designers || []).map((d) =>
+          d.id === id || d.id === targetId
+            ? {
+                ...d,
+                is_verified: true,
+                verified: true,
+                is_subscription_active: false,
+                subscription_end: null,
+                is_public: false,
+              }
+            : d
+        ),
+        verifiedDesigners: (prev?.verifiedDesigners || 0) + 1,
+      }));
+      setReviewingDesigner(null);
+      setActiveTab("active");
       toast.success("Designer Approved (Paywall Active)!", { id: toastId });
-      fetchAllData();
     } catch (error) {
       console.error(`Failed to verify designer ${id}:`, error);
       toast.error(error.message || "Designer verification failed.", { id: toastId });
-      fetchAllData();
     }
   };
 
@@ -2323,7 +2373,7 @@ const AdminDashboard = () => {
 
         {activeTab === "applications" && (
           <div className="space-y-4">
-            {(data.applications || []).length === 0 && (
+            {pendingRequests.length === 0 && (
               <div className="text-center py-16 bg-gray-50 rounded-3xl border border-gray-200 border-dashed text-gray-500">
                 No new requests found.
               </div>
@@ -2382,7 +2432,7 @@ const AdminDashboard = () => {
             ))}
             <TablePagination
               currentPage={appsPage}
-              totalItems={(data?.applications || []).length}
+              totalItems={pendingRequests.length}
               pageSize={ADMIN_PAGE_SIZE}
               onPageChange={setAppsPage}
             />
@@ -2407,7 +2457,7 @@ const AdminDashboard = () => {
                   <div className="w-16 h-16 rounded-2xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner">
                     {d?.logo_url ? (
                       <img
-                        src={d.logo_url}
+                        src={resolveMediaUrl(d.logo_url)}
                         alt="logo"
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       />
@@ -2641,7 +2691,7 @@ const AdminDashboard = () => {
                           <div className="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0">
                             {designer.logo_url ? (
                               <img
-                                src={designer.logo_url}
+                                src={resolveMediaUrl(designer.logo_url)}
                                 alt="logo"
                                 className="w-full h-full object-cover"
                               />

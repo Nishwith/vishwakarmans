@@ -21,6 +21,7 @@ import {
   Building2
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
+import { resolveMediaUrl } from "../utils/r2Storage";
 import { useCurrentUser, useUserProfile } from "../hooks/useAuth";
 import { isDesignerPubliclyEligible } from "../utils/designerVisibility";
 import SEO from "../components/SEO";
@@ -320,7 +321,7 @@ const Home = () => {
                     <div className="w-32 h-32 rounded-full p-1 bg-gradient-to-tr from-brand-accent to-yellow-500 mb-8 group-hover:scale-105 transition-transform duration-500 shadow-lg">
                       <div className="w-full h-full rounded-full bg-white border-4 border-white overflow-hidden flex items-center justify-center relative">
                         {designer?.logo_url ? (
-                          <img loading="lazy" src={designer.logo_url} alt={designer?.name || "Designer"} className="w-full h-full object-cover" />
+                          <img loading="lazy" src={resolveMediaUrl(designer.logo_url)} alt={designer?.name || "Designer"} className="w-full h-full object-cover" />
                         ) : (
                           <span className="text-5xl font-bold text-gray-300">{designer?.name?.[0] || "?"}</span>
                         )}

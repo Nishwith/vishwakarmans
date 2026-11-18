@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { resolveMediaUrl } from "../utils/r2Storage";
 import {
   ArrowLeft,
   Star,
@@ -83,7 +84,7 @@ const CompareDesigners = () => {
     (designer?.designer_projects || []).forEach((proj) => {
       (proj?.project_images || []).forEach((img) => {
         if (img?.image_url && images.length < 3) {
-          images.push(img.image_url);
+          images.push(resolveMediaUrl(img.image_url));
         }
       });
     });
@@ -106,7 +107,7 @@ const CompareDesigners = () => {
       (proj?.project_images || []).forEach((img) => {
         if (img?.image_url) {
           images.push({
-            url: img.image_url,
+            url: resolveMediaUrl(img.image_url),
             title: proj.title || "Portfolio Project",
           });
         }
@@ -232,7 +233,7 @@ const CompareDesigners = () => {
                         <div className="w-16 h-16 rounded-2xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0">
                           {designer.logo_url ? (
                             <img
-                              src={designer.logo_url}
+                              src={resolveMediaUrl(designer.logo_url)}
                               alt={designer.name}
                               className="w-full h-full object-cover"
                             />

@@ -5,6 +5,7 @@ import { isAdminAuthorizationRpcEnabled, checkServerAdminAuthorization, isAdminR
 import { isSecureDesignerRequestRpcEnabled, submitDesignerAccountRequest } from "../services/designerAccountRequestService";
 import { updateOwnDesignerProfile } from "../services/designerProfileService";
 import { archiveInquiry } from "../services/designerInquiryService";
+import { uploadToR2, deleteFromR2, resolveMediaUrl } from "../utils/r2Storage";
 import {
   Users,
   Image as ImageIcon,
@@ -228,15 +229,10 @@ const AddProjectModal = ({ onClose, onAdd, designerId }) => {
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
           const compressedFile = await compressImage(file, { maxWidth: 2048, quality: 0.8 });
-          const fileExt = compressedFile.name.split(".").pop();
-          const fileName = `${designerId}/${projData.id}/${category}_${Date.now()}_${i}.${fileExt}`;
-          const { error: uploadError } = await supabase.storage.from("portfolio").upload(fileName, compressedFile);
-          if (uploadError) throw uploadError;
-
-          const { data } = supabase.storage.from("portfolio").getPublicUrl(fileName);
+          const publicUrl = await uploadToR2(compressedFile, "portfolios");
           uploadedImages.push({
             project_id: projData.id,
-            image_url: data.publicUrl,
+            image_url: publicUrl,
             room_category: category,
             materials_used: Array.isArray(roomMaterials[category]) ? roomMaterials[category] : [],
             is_cover: isFirstImageCover,
@@ -619,16 +615,10 @@ const EditProjectModal = ({ project, designerId, onClose, onUpdate }) => {
         for (let i = 0; i < files.length; i++) {
           const file = files[i];
           const compressedFile = await compressImage(file, { maxWidth: 2048, quality: 0.8 });
-          const fileExt = compressedFile.name.split(".").pop();
-          const fileName = `${designerId}/${project.id}/${category}_${Date.now()}_${i}.${fileExt}`;
-          
-          const { error: uploadError } = await supabase.storage.from("portfolio").upload(fileName, compressedFile);
-          if (uploadError) throw uploadError;
-
-          const { data } = supabase.storage.from("portfolio").getPublicUrl(fileName);
+          const publicUrl = await uploadToR2(compressedFile, "portfolios");
           newImageRecords.push({ 
             project_id: project.id, 
-            image_url: data.publicUrl, 
+            image_url: publicUrl, 
             room_category: category,
             materials_used: Array.isArray(roomMaterials[category]) ? roomMaterials[category] : [],
             is_cover: false 
@@ -755,7 +745,7 @@ const EditProjectModal = ({ project, designerId, onClose, onUpdate }) => {
                         <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
                           {existingImgsForCat.map(img => (
                             <div key={img.id} className="relative aspect-square bg-gray-200 rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-                              <img src={img.image_url} alt="existing" className="w-full h-full object-cover" />
+                              <img src={resolveMediaUrl(img.image_url)} alt="existing" className="w-full h-full object-cover" />
                               <button type="button" onClick={() => markExistingImageForDeletion(img)} className="absolute top-1 right-1 bg-red-500/80 hover:bg-red-600 text-white p-1 rounded-full backdrop-blur-sm">
                                 <Trash2 size={10} />
                               </button>
@@ -951,7 +941,7 @@ const ProjectCard = ({ proj, onDelete, onEdit }) => {
     <div className="group bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-sm relative flex flex-col hover:border-gray-300 hover:shadow-xl transition-all">
       <div className="aspect-video relative bg-gray-100 overflow-hidden">
         {images.length > 0 ? (
-          <img src={images[currentImgIndex]?.image_url} className="w-full h-full object-cover" />
+          <img src={resolveMediaUrl(images[currentImgIndex]?.image_url)} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400">
             <ImageIcon size={40} />
@@ -1179,11 +1169,7 @@ const DesignerDashboard = () => {
     try {
       let finalUrl = profileForm.logo_url;
       if (logoFile) {
-        const fileExt = logoFile.name.split('.').pop();
-        const fileName = `logos/${designer.id}_${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from("portfolio").upload(fileName, logoFile);
-        if (uploadError) throw uploadError;
-        finalUrl = supabase.storage.from("portfolio").getPublicUrl(fileName).data.publicUrl;
+        finalUrl = await uploadToR2(logoFile, "logos");
       }
       const updatePayload = {
         name: profileForm.name, city: profileForm.city, projects_completed: parseInt(profileForm.projects_completed) || 0, about_text: profileForm.about_text,
@@ -1262,7 +1248,7 @@ const DesignerDashboard = () => {
     <form onSubmit={handleUpdateProfile} className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">
       <div className="flex flex-col items-center gap-4 border-b border-gray-200 pb-6">
         <div className="w-24 h-24 rounded-full bg-gray-50 border-2 border-gray-300 overflow-hidden relative">
-          {logoFile ? <img src={URL.createObjectURL(logoFile)} className="w-full h-full object-cover" /> : <img src={designer?.logo_url} className="w-full h-full object-cover" />}
+          {logoFile ? <img src={URL.createObjectURL(logoFile)} className="w-full h-full object-cover" /> : <img src={resolveMediaUrl(designer?.logo_url)} className="w-full h-full object-cover" />}
         </div>
         <div>
           <input type="file" onChange={(e) => setLogoFile(e.target.files[0])} className="hidden" id="logoUpload" />
@@ -1355,7 +1341,7 @@ const DesignerDashboard = () => {
         <aside className={`hidden md:flex w-72 bg-white border-r border-gray-200 flex-col p-6 sticky top-0 h-screen overflow-y-auto ${adminDesignerId ? 'pt-12' : ''}`}>
           <div className="flex flex-col items-center mb-10 text-center">
             <div className="w-24 h-24 bg-gray-100 rounded-full mb-4 border-2 border-gray-200 overflow-hidden shadow-sm">
-              {designer?.logo_url ? <img src={designer.logo_url} className="w-full h-full object-cover" /> : <div className="h-full flex items-center justify-center font-bold text-3xl text-gray-400">{designer?.name?.[0]}</div>}
+              {designer?.logo_url ? <img src={resolveMediaUrl(designer.logo_url)} className="w-full h-full object-cover" /> : <div className="h-full flex items-center justify-center font-bold text-3xl text-gray-400">{designer?.name?.[0]}</div>}
             </div>
             <h2 className="text-gray-900 font-bold text-lg truncate w-full">{designer?.name}</h2>
             <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded mt-2">Verified Partner</span>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
+import { resolveMediaUrl } from '../utils/r2Storage';
 
 export const useDesigners = () => {
     const [designers, setDesigners] = useState([]);
@@ -38,7 +39,8 @@ export const useDesigners = () => {
                             const cat = project.project_category.toLowerCase(); // e.g., 'kitchen'
 
                             // Get the first image of this project
-                            const img = project.project_images?.[0]?.image_url;
+                            const rawImg = project.project_images?.[0]?.image_url;
+                            const img = resolveMediaUrl(rawImg);
 
                             if (img) {
                                 portfolioMap[cat] = img;

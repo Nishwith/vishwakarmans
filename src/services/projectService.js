@@ -1,5 +1,8 @@
 import { supabase } from './supabaseClient';
 import { submitOrReopenInquiry, archiveInquiry } from './designerInquiryService';
+import { uploadToR2, deleteFromR2, resolveMediaUrl } from '../utils/r2Storage';
+
+export { uploadToR2, deleteFromR2, resolveMediaUrl };
 
 // ── Designers ────────────────────────────────────────────────────────────
 
@@ -67,11 +70,11 @@ export const insertProjectImages = async (rows) => {
 
 // ── Storage ──────────────────────────────────────────────────────────────
 
-/** Upload a file to the portfolio bucket. Returns the public URL. */
+/** Upload a file to Cloudflare R2 storage. Returns the public URL. */
 export const uploadPortfolioFile = async (path, file) => {
-  const { error } = await supabase.storage.from('portfolio').upload(path, file);
-  if (error) throw error;
-  return supabase.storage.from('portfolio').getPublicUrl(path).data.publicUrl;
+  const actualFile = (file instanceof Blob || (file && file.size !== undefined)) ? file : path;
+  const folder = (typeof path === 'string' && path.includes('logo')) ? 'logos' : 'portfolios';
+  return uploadToR2(actualFile, folder);
 };
 
 // ── Connections ──────────────────────────────────────────────────────────

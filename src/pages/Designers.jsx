@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { supabase } from "../supabaseClient";
+import { resolveMediaUrl } from "../utils/r2Storage";
 import {
   Search,
   MapPin,
@@ -820,7 +821,7 @@ const Designers = ({
                       <div className="w-14 h-14 bg-gray-50 rounded-xl flex items-center justify-center text-xl font-bold text-brand-accent border border-gray-100 overflow-hidden shrink-0">
                         {designer?.logo_url ? (
                           <img
-                            src={designer.logo_url}
+                            src={resolveMediaUrl(designer.logo_url)}
                             alt={designer?.name || "Designer"}
                             className="w-full h-full object-cover"
                             loading="lazy"

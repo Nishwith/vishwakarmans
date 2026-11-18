@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { resolveMediaUrl } from "../utils/r2Storage";
 import toast from "react-hot-toast";
 
 
@@ -84,7 +85,7 @@ const PublicProjectCard = ({ project, onClick }) => {
       {/* Image Slider */}
       <div className="w-full aspect-video relative bg-gray-100 overflow-hidden shrink-0">
         <img 
-          src={images[currentIndex]?.image_url || "/placeholder.jpg"} 
+          src={resolveMediaUrl(images[currentIndex]?.image_url) || "/placeholder.jpg"} 
           className="w-full h-full object-cover aspect-video transition-transform duration-300 group-hover:scale-105 hover:scale-105" 
           alt={project.title} 
           loading="lazy"
@@ -250,7 +251,7 @@ const ProjectDetailModal = ({ project, onClose }) => {
         <div className="w-full md:w-[65%] lg:w-[70%] bg-gray-950 relative flex flex-col min-h-[55vh] h-[55vh] md:h-full">
           <div className="flex-1 relative flex items-center justify-center p-4 md:p-8 overflow-hidden">
             <img 
-              src={displayImages[currentIndex]?.image_url || "/placeholder.jpg"} 
+              src={resolveMediaUrl(displayImages[currentIndex]?.image_url) || "/placeholder.jpg"} 
               alt={project.title}
               className=" h-full object-cover cursor-pointer hover:opacity-90 transition-opacity rounded-xl shadow-2xl animate-in fade-in duration-500"
               loading="lazy"
@@ -291,7 +292,7 @@ const ProjectDetailModal = ({ project, onClose }) => {
                     currentIndex === idx ? "border-brand-accent opacity-100" : "border-transparent opacity-40 hover:opacity-100"
                   }`}
                 >
-                  <img src={img.image_url} className="w-full h-full object-cover" alt={`thumb-${idx}`} loading="lazy" />
+                  <img src={resolveMediaUrl(img.image_url)} className="w-full h-full object-cover" alt={`thumb-${idx}`} loading="lazy" />
                 </button>
               ))}
             </div>
@@ -327,7 +328,7 @@ const ProjectDetailModal = ({ project, onClose }) => {
           )}
 
           <img 
-            src={displayImages[currentIndex]?.image_url || "/placeholder.jpg"} 
+            src={resolveMediaUrl(displayImages[currentIndex]?.image_url) || "/placeholder.jpg"} 
             alt="Fullscreen View"
             className="max-w-full max-h-full object-contain animate-in zoom-in-95 duration-300"
             onClick={(e) => e.stopPropagation()}
@@ -744,7 +745,7 @@ const DesignerProfile = () => {
     "@context": "https://schema.org",
     "@type": "HomeAndConstructionBusiness",
     name: firmName,
-    image: designer.profile_image || designer.logo_url,
+    image: resolveMediaUrl(designer.profile_image || designer.logo_url),
     address: {
       "@type": "PostalAddress",
       addressLocality: designer.city,
@@ -781,7 +782,7 @@ const DesignerProfile = () => {
             >
               {designer.logo_url ? (
                 <img
-                  src={designer.logo_url}
+                  src={resolveMediaUrl(designer.logo_url)}
                   alt={designer.name}
                   className="w-full h-full object-cover"
                   loading="lazy"

@@ -61,6 +61,7 @@ describe("r2Storage Utility Suite (Cloudflare R2)", () => {
           fileName: "portfolio.webp",
           contentType: "image/webp",
           folder: "portfolios",
+          fileSize: validFile.size,
         },
       });
 

@@ -7,10 +7,6 @@ import { Toaster } from "react-hot-toast";
 import React, { Suspense, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Home from "./pages/Home";
-import Designers from "./pages/Designers";
-import CityCategoryPage from "./pages/CityCategoryPage";
-import DesignerProfile from "./pages/DesignerProfile";
-import CompareDesigners from "./pages/CompareDesigners";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Connect from "./pages/Connect";
@@ -31,6 +27,10 @@ import {
 
 import CompleteProfile from "./pages/CompleteProfile";
 
+const Designers = React.lazy(() => import("./pages/Designers"));
+const CityCategoryPage = React.lazy(() => import("./pages/CityCategoryPage"));
+const DesignerProfile = React.lazy(() => import("./pages/DesignerProfile"));
+const CompareDesigners = React.lazy(() => import("./pages/CompareDesigners"));
 const AdminDashboard = React.lazy(() => import("./pages/AdminDashboard"));
 const DesignerDashboard = React.lazy(() => import("./pages/DesignerDashboard"));
 
@@ -97,52 +97,40 @@ function App() {
       <Navbar />
       <div className="overflow-x-hidden min-h-screen">
         <OnboardingGuard>
-          <Routes>
-            {/* Public */}
-            <Route path="/" element={<Home />} />
-            <Route path="/designers" element={<Designers />} />
-            <Route path="/designers/:category/:city" element={<CityCategoryPage />} />
-            <Route path="/designers/:id" element={<DesignerProfile />} />
-            <Route path="/compare" element={<CompareDesigners />} />
-            <Route path="/aboutcontact" element={<AboutContact />} />
-            <Route path="/terms" element={<TermsOfServices />} />
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/update-password" element={<UpdatePassword />} />
-            <Route path="/complete-profile" element={<CompleteProfile />} />
-            <Route path="*" element={<NotFound />} />
-            <Route element={<RequireGuest />}>
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/signup" element={<Navigate to="/register" replace />} />
-            </Route>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              {/* Public */}
+              <Route path="/" element={<Home />} />
+              <Route path="/designers" element={<Designers />} />
+              <Route path="/designers/:category/:city" element={<CityCategoryPage />} />
+              <Route path="/designers/:id" element={<DesignerProfile />} />
+              <Route path="/compare" element={<CompareDesigners />} />
+              <Route path="/aboutcontact" element={<AboutContact />} />
+              <Route path="/terms" element={<TermsOfServices />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/update-password" element={<UpdatePassword />} />
+              <Route path="/complete-profile" element={<CompleteProfile />} />
+              <Route path="*" element={<NotFound />} />
+              <Route element={<RequireGuest />}>
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/signup" element={<Navigate to="/register" replace />} />
+              </Route>
 
-            {/* Logged In Users */}
-            <Route element={<RequireAuth />}>
-              <Route path="/connect" element={<Connect />} />
-              <Route path="/dashboard" element={<Connect />} />
-              <Route path="/profile" element={<UserProfile />} />
-            </Route>
+              {/* Logged In Users */}
+              <Route element={<RequireAuth />}>
+                <Route path="/connect" element={<Connect />} />
+                <Route path="/dashboard" element={<Connect />} />
+                <Route path="/profile" element={<UserProfile />} />
+              </Route>
 
-            {/* === ADMIN ONLY === */}
-            <Route element={<RequireAdmin />}>
-              <Route 
-                path="/admin" 
-                element={
-                  <Suspense fallback={<PageLoader />}>
-                    <AdminDashboard />
-                  </Suspense>
-                } 
-              />
-              <Route 
-                path="/admin/manage-designer/:id" 
-                element={
-                  <Suspense fallback={<PageLoader />}>
-                    <DesignerDashboard />
-                  </Suspense>
-                } 
-              />
-            </Route>
-          </Routes>
+              {/* === ADMIN ONLY === */}
+              <Route element={<RequireAdmin />}>
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/admin/manage-designer/:id" element={<DesignerDashboard />} />
+              </Route>
+            </Routes>
+          </Suspense>
         </OnboardingGuard>
       </div>
       <Footer />

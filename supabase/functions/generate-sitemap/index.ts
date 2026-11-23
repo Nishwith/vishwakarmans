@@ -2,6 +2,17 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const BASE_URL = "https://vishwakarmans.com";
+export const LAUNCH_CITIES = [
+  "hyderabad",
+  "bangalore",
+  "kolkata",
+  "delhi",
+  "mumbai",
+  "chennai",
+];
+
+export const LAUNCH_CATEGORIES = ["interior", "commercial"];
+
 export const SEO_CATEGORIES = ["interior", "exterior", "commercial", "home", "office"];
 
 export const STATIC_ROUTES = [
@@ -44,14 +55,15 @@ export async function buildSitemapXml(supabase: any): Promise<string> {
     }));
   }
 
-  // Filter unique cities
+  // Filter unique cities (seeded with the 6 core launch cities)
   const uniqueCities = [
-    ...new Set(
-      designers
+    ...new Set([
+      ...LAUNCH_CITIES,
+      ...designers
         .map((d) => d.city)
         .filter((c): c is string => typeof c === "string" && c.trim().length > 0)
-        .map((c) => c.trim())
-    ),
+        .map((c) => c.trim()),
+    ]),
   ];
 
   const xmlUrls: string[] = [];

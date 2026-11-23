@@ -763,6 +763,7 @@ const DesignerProfile = () => {
       <SEO 
         title={`${firmName} | Top Designer in ${designer.city || 'India'}`} 
         description={dynamicDescription} 
+        canonical={`https://vishwakarmans.com/designer/${designer.slug || designer.id}`}
         schema={schema} 
       />
       {/* HEADER */}
@@ -780,7 +781,7 @@ const DesignerProfile = () => {
               whileTap={{ scale: 0.95 }}
               className="w-24 h-24 md:w-32 md:h-32 bg-gray-50 rounded-3xl border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center text-3xl font-bold text-brand-accent shadow-xl mx-auto md:mx-0"
             >
-              {designer.logo_url ? (
+              {resolveMediaUrl(designer?.logo_url) ? (
                 <img
                   src={resolveMediaUrl(designer.logo_url)}
                   alt={designer.name}

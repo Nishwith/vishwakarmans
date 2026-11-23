@@ -26,12 +26,14 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getYouTubeEmbedUrl } from "../utils/publicDesignerVideo";
+import { extractUniqueMaterials } from "../utils/extractUniqueMaterials";
 
 const CompareDesigners = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [designers, setDesigners] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [materialsModalOpen, setMaterialsModalOpen] = useState(false);
   const [previewModal, setPreviewModal] = useState({
     isOpen: false,
     designerName: "",
@@ -57,7 +59,7 @@ const CompareDesigners = () => {
         const { data, error } = await supabase
           .from("designers")
           .select(
-            "id, name, city, designer_type, about_text, logo_url, style_tags, experience_years, projects_completed, rating_avg, is_verified, service_area_lat, service_area_lng, website_url, video_link, video_link_1, video_link_2, videos_approved, designer_projects(id, title, project_images(image_url, is_cover))"
+            "id, name, city, designer_type, about_text, logo_url, style_tags, experience_years, projects_completed, rating_avg, is_verified, service_area_lat, service_area_lng, website_url, video_link, video_link_1, video_link_2, videos_approved, designer_projects(id, title, room_materials, project_images(image_url, is_cover))"
           )
           .in("id", designerIds);
 
@@ -162,6 +164,15 @@ const CompareDesigners = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [previewModal.isOpen, previewModal.images.length]);
+
+  useEffect(() => {
+    if (!materialsModalOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") setMaterialsModalOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [materialsModalOpen]);
 
   if (loading) {
     return (
@@ -357,6 +368,51 @@ const CompareDesigners = () => {
                   ))}
                 </tr>
 
+                {/* Materials Used */}
+                <tr>
+                  <td className="p-6 font-bold text-gray-900 bg-gray-50/30">
+                    <div>
+                      <p>Materials Used</p>
+                      <span className="text-[11px] font-normal text-gray-400 block mt-0.5">
+                        Extracted from portfolio projects
+                      </span>
+                    </div>
+                  </td>
+                  {designers.map((d) => {
+                    const materials = extractUniqueMaterials(d);
+                    return (
+                      <td key={d.id} className="p-6">
+                        {materials.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5 items-center">
+                            {materials.slice(0, 5).map((mat, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded-md border border-gray-200"
+                              >
+                                {mat}
+                              </span>
+                            ))}
+                            {materials.length > 5 && (
+                              <button
+                                type="button"
+                                onClick={() => setMaterialsModalOpen(true)}
+                                className="px-2 py-0.5 bg-brand-accent/10 text-brand-accent hover:bg-brand-accent/20 text-xs font-bold rounded-md border border-brand-accent/30 transition-colors cursor-pointer"
+                                title="View all materials across compared designers"
+                                aria-label={`View ${materials.length - 5} more materials`}
+                                data-testid={`more-materials-btn-${d.id}`}
+                              >
+                                +{materials.length - 5} more
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">Not specified</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+
                 {/* Bio / About */}
                 <tr>
                   <td className="p-6 font-bold text-gray-900 bg-gray-50/30">About / Overview</td>
@@ -443,6 +499,8 @@ const CompareDesigners = () => {
                                       className="w-full aspect-video rounded-xl border border-gray-200"
                                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                       allowFullScreen
+                                      loading="lazy"
+                                      referrerPolicy="strict-origin-when-cross-origin"
                                     />
                                   ) : (
                                     <a
@@ -576,6 +634,109 @@ const CompareDesigners = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+      {/* ALL-DESIGNERS MATERIALS COMPARISON MODAL */}
+      {materialsModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Materials Used Comparison"
+          className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in transition-all"
+          onClick={() => setMaterialsModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/70">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <Sparkles size={20} className="text-brand-accent" /> Materials Used Comparison
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Compare all architectural and interior materials specified in past projects across selected designers.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMaterialsModalOpen(false)}
+                className="p-2 rounded-full hover:bg-gray-200 text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
+                aria-label="Close modal"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body: Multi-Column Comparison Grid */}
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {designers.map((designer) => {
+                  const materials = extractUniqueMaterials(designer);
+                  return (
+                    <div
+                      key={designer.id}
+                      className="bg-gray-50 rounded-2xl p-5 border border-gray-200/80 flex flex-col"
+                      data-testid={`modal-materials-column-${designer.id}`}
+                    >
+                      <div className="flex items-center gap-3 pb-3 mb-4 border-b border-gray-200">
+                        <div className="w-10 h-10 rounded-xl bg-white border border-gray-200 overflow-hidden shrink-0">
+                          {designer.logo_url ? (
+                            <img
+                              src={resolveMediaUrl(designer.logo_url)}
+                              alt={designer.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center font-bold text-brand-accent">
+                              {designer.name?.[0] || "?"}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-bold text-sm text-gray-900 truncate">
+                            {designer.name}
+                          </h4>
+                          <span className="text-[11px] text-gray-500 block truncate">
+                            {designer.city || "Unknown City"} • {materials.length} material{materials.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {materials.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 overflow-y-auto max-h-64 pr-1">
+                          {materials.map((mat, idx) => (
+                            <span
+                              key={idx}
+                              className="px-2.5 py-1 bg-white text-gray-800 text-xs font-medium rounded-lg border border-gray-200 shadow-xs"
+                            >
+                              {mat}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-400 italic py-4 text-center">
+                          No materials specified in projects
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setMaterialsModalOpen(false)}
+                className="px-5 py-2 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -91,4 +91,27 @@ describe("CityCategoryPage Component Rendering", () => {
     expect(screen.getByTestId("grid-city")).toHaveTextContent("New Delhi");
     expect(screen.getByTestId("grid-category")).toHaveTextContent("Interior");
   });
+
+  it("handles interior-designers slug and avoids repeated Designers in heading", () => {
+    renderWithRouter("/designers/interior-designers/bangalore");
+
+    const h1 = screen.getByRole("heading", { level: 1 });
+    expect(h1).toHaveTextContent("Best Interior Designers in Bangalore");
+
+    expect(screen.getByTestId("grid-city")).toHaveTextContent("Bangalore");
+    expect(screen.getByTestId("grid-category")).toHaveTextContent("Interior");
+  });
+
+  it.each([
+    ["interior", "hyderabad", "Hyderabad", "Interior"],
+    ["commercial", "bangalore", "Bangalore", "Commercial"],
+    ["interior", "kolkata", "Kolkata", "Interior"],
+    ["commercial", "delhi", "Delhi", "Commercial"],
+    ["interior", "mumbai", "Mumbai", "Interior"],
+    ["commercial", "chennai", "Chennai", "Commercial"],
+  ])("correctly maps 6 launch cities and 2 categories (%s in %s)", (cat, city, expCity, expCat) => {
+    renderWithRouter(`/designers/${cat}/${city}`);
+    expect(screen.getByTestId("grid-city")).toHaveTextContent(expCity);
+    expect(screen.getByTestId("grid-category")).toHaveTextContent(expCat);
+  });
 });

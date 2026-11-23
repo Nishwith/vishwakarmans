@@ -22,9 +22,9 @@ test("public designer card projection excludes contact and original video fields
 
 test("converts allowed YouTube URL forms to an embed URL", () => {
   const cases = [
-    ["https://www.youtube.com/watch?v=abcdefghijk&t=4", "https://www.youtube.com/embed/abcdefghijk"],
-    ["https://m.youtube.com/shorts/abcdefghijk", "https://www.youtube.com/embed/abcdefghijk"],
-    ["https://youtu.be/abcdefghijk", "https://www.youtube.com/embed/abcdefghijk"],
+    ["https://www.youtube.com/watch?v=abcdefghijk&t=4", "https://www.youtube-nocookie.com/embed/abcdefghijk?rel=0&modestbranding=1&t=4"],
+    ["https://m.youtube.com/shorts/abcdefghijk", "https://www.youtube-nocookie.com/embed/abcdefghijk?rel=0&modestbranding=1"],
+    ["https://youtu.be/abcdefghijk", "https://www.youtube-nocookie.com/embed/abcdefghijk?rel=0&modestbranding=1"],
   ];
 
   for (const [url, expected] of cases) {
@@ -57,7 +57,7 @@ test("requests only the public final video for the selected designer", async () 
   };
 
   assert.deepEqual(await loadPublicDesignerVideo({ rpc }, "29"), {
-    embedUrl: "https://www.youtube.com/embed/abcdefghijk",
+    embedUrl: "https://www.youtube-nocookie.com/embed/abcdefghijk?rel=0&modestbranding=1",
     error: null,
   });
   assert.deepEqual(calls, [["get_public_designer_video", { p_designer_id: 29 }]]);

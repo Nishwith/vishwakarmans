@@ -25,6 +25,7 @@ import { resolveMediaUrl } from "../utils/r2Storage";
 import { useCurrentUser, useUserProfile } from "../hooks/useAuth";
 import { isDesignerPubliclyEligible } from "../utils/designerVisibility";
 import SEO from "../components/SEO";
+import { DESIGNER_APP_URL } from "../config";
 
 // --- HELPER COMPONENT FOR SCROLL ANIMATIONS ---
 const RevealOnScroll = ({ children, delay = 0 }) => {
@@ -32,6 +33,10 @@ const RevealOnScroll = ({ children, delay = 0 }) => {
   const ref = useRef(null);
 
   useEffect(() => {
+    if (typeof window === "undefined" || typeof IntersectionObserver === "undefined") {
+      setIsVisible(true);
+      return;
+    }
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -81,6 +86,7 @@ const Home = () => {
           .eq("is_public", true)
           .eq("is_subscription_active", true)
           .order("priority_score", { ascending: false })
+          .order("id", { ascending: true })
           .limit(3);
 
         if (error) throw error;
@@ -105,11 +111,11 @@ const Home = () => {
   }, []);
 
   const getDesignerBtnProps = () => {
-    if (loadingRole && user) return { link: "#", text: "Loading..." };
-    if (role === "admin") return { link: "/admin", text: "Go to Admin Panel" };
+    if (loadingRole && user) return { link: "#", text: "Loading...", isExternal: false };
+    if (role === "admin") return { link: "/admin", text: "Go to Admin Panel", isExternal: false };
     if (role === "designer")
-      return { link: "/dashboard", text: "Go to Dashboard" };
-    return { link: "/collab", text: "Join as Designer" };
+      return { link: `${DESIGNER_APP_URL}/dashboard`, text: "Go to Dashboard", isExternal: true };
+    return { link: "/collab", text: "Join as Designer", isExternal: false };
   };
 
   const designerBtn = getDesignerBtnProps();
@@ -320,7 +326,7 @@ const Home = () => {
 
                     <div className="w-32 h-32 rounded-full p-1 bg-gradient-to-tr from-brand-accent to-yellow-500 mb-8 group-hover:scale-105 transition-transform duration-500 shadow-lg">
                       <div className="w-full h-full rounded-full bg-white border-4 border-white overflow-hidden flex items-center justify-center relative">
-                        {designer?.logo_url ? (
+                        {resolveMediaUrl(designer?.logo_url) ? (
                           <img loading="lazy" src={resolveMediaUrl(designer.logo_url)} alt={designer?.name || "Designer"} className="w-full h-full object-cover" />
                         ) : (
                           <span className="text-5xl font-bold text-gray-300">{designer?.name?.[0] || "?"}</span>

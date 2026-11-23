@@ -124,7 +124,7 @@ const FeatureRequestModal = ({ designer, onClose, onApprove, onReject }) => {
           {/* Designer Card Summary */}
           <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 flex flex-col sm:flex-row gap-5 items-center sm:items-start text-center sm:text-left">
             <div className="w-20 h-20 rounded-2xl bg-white border border-gray-300 overflow-hidden shrink-0 shadow-sm">
-              {designer?.logo_url ? (
+              {resolveMediaUrl(designer?.logo_url) ? (
                 <img
                   src={resolveMediaUrl(designer.logo_url)}
                   alt={designer?.name || "Logo"}
@@ -274,7 +274,7 @@ const ReviewModal = ({ designer, onClose, onApprove, onReject }) => {
         <div className="p-5 md:p-8 overflow-y-auto space-y-6">
           <div className="flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left">
             <div className="w-24 h-24 rounded-2xl bg-gray-50 border-2 border-gray-300 overflow-hidden shrink-0 mx-auto md:mx-0 shadow-inner">
-              {designer?.logo_url ? (
+              {resolveMediaUrl(designer?.logo_url) ? (
                 <img
                   src={resolveMediaUrl(designer.logo_url)}
                   alt={designer?.name || "logo"}
@@ -485,7 +485,7 @@ const ActiveDesignerCard = ({
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex gap-4 items-center w-full">
           <div className="w-12 h-12 rounded-full bg-gray-50 border-2 border-gray-300 overflow-hidden shrink-0 relative">
-            {d?.logo_url ? (
+            {resolveMediaUrl(d?.logo_url) ? (
               <img src={resolveMediaUrl(d.logo_url)} alt="logo" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center font-bold text-2xl text-slate-500">
@@ -753,7 +753,7 @@ const OverviewTab = ({
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-12 h-12 rounded-xl bg-white border border-gray-200 overflow-hidden shrink-0 shadow-inner flex items-center justify-center">
-                    {d?.logo_url ? (
+                    {resolveMediaUrl(d?.logo_url) ? (
                       <img src={resolveMediaUrl(d.logo_url)} alt={d?.name || "Logo"} className="w-full h-full object-cover" />
                     ) : (
                       <span className="font-bold text-gray-400 text-lg">{d?.name?.[0] || "?"}</span>
@@ -825,7 +825,7 @@ const OverviewTab = ({
                       <tr key={d?.id} className="hover:bg-gray-100/30">
                         <td className="p-3 pl-4">
                           <div className="flex items-center gap-3">
-                            {d?.logo_url ? (
+                            {resolveMediaUrl(d?.logo_url) ? (
                               <img
                                 src={resolveMediaUrl(d.logo_url)}
                                 className="w-8 h-8 rounded-full bg-gray-100 object-cover"
@@ -958,8 +958,8 @@ const AdminOnboardDesigner = ({ onSuccess }) => {
 
     setLoading(true);
 
+    let logoUrl = "";
     try {
-      let logoUrl = "";
       if (logoFile) {
         logoUrl = await uploadToR2(logoFile, "logos");
       }
@@ -1067,6 +1067,13 @@ const AdminOnboardDesigner = ({ onSuccess }) => {
         onSuccess();
       }
     } catch (error) {
+      if (logoUrl) {
+        try {
+          await deleteFromR2(logoUrl);
+        } catch (cleanupErr) {
+          console.warn("Failed to cleanup orphaned logo from R2:", cleanupErr);
+        }
+      }
       toast.error(error.message || "Failed to create designer");
     } finally {
       setLoading(false);
@@ -1435,7 +1442,8 @@ const AdminDashboard = () => {
   const [activePage, setActivePage] = useState(1);
   const [inboxPage, setInboxPage] = useState(1);
   const [appsPage, setAppsPage] = useState(1);
-  const ADMIN_PAGE_SIZE = 10;
+  const [pendingPage, setPendingPage] = useState(1);
+  const ADMIN_PAGE_SIZE = 25;
 
   const fetchAllData = useCallback(async () => {
     setLoading(true);
@@ -1471,14 +1479,27 @@ const AdminDashboard = () => {
         return;
       }
 
-      // Task 1: Strict separation between Requests Queue (onboarding completed, profile incomplete)
-      // and Verify Profiles Queue (profile completed, awaiting verification).
+      // Explicit column selection and deterministic ordering with server-side range pagination
+      const APPLICATION_COLUMNS =
+        "id, user_id, org_name, designer_type, city, phone, email, website_url, portfolio_link, status, created_at, experience_years, message, notes";
+
+      const DESIGNER_COLUMNS =
+        "id, user_id, name, email, phone, city, designer_type, logo_url, rating_avg, projects_completed, experience_years, website_url, service_area_lat, service_area_lng, location, style_tags, video_link, video_link_1, video_link_2, video_status, videos_approved, is_verified, is_public, is_subscription_active, subscription_end, featured_status, featured_expiry, priority_score, created_at, about_text, bio, budget_range, onboarding_completed, profile_completed, designer_projects(count)";
+
+      const MESSAGE_COLUMNS =
+        "id, name, email, phone, subject, message, created_at, status, user_id";
+
       const fetchRequests = () => {
         let query = supabase
           .from("designer_applications")
-          .select("*")
+          .select(APPLICATION_COLUMNS, { count: "exact" })
           .eq("status", "pending")
           .order("created_at", { ascending: false });
+        if (typeof query.order === "function") {
+          try {
+            query = query.order("id", { ascending: false });
+          } catch {}
+        }
         if (typeof query.range === "function") query = query.range(0, 99);
         return query;
       };
@@ -1486,8 +1507,13 @@ const AdminDashboard = () => {
       const fetchVerifications = () => {
         let query = supabase
           .from("designers")
-          .select("*, designer_projects(count)")
+          .select(DESIGNER_COLUMNS, { count: "exact" })
           .order("created_at", { ascending: false });
+        if (typeof query.order === "function") {
+          try {
+            query = query.order("id", { ascending: false });
+          } catch {}
+        }
         if (typeof query.range === "function") query = query.range(0, 99);
         return query;
       };
@@ -1497,8 +1523,13 @@ const AdminDashboard = () => {
 
       let msgsQuery = supabase
         .from("contact_messages")
-        .select("*")
+        .select(MESSAGE_COLUMNS, { count: "exact" })
         .order("created_at", { ascending: false });
+      if (typeof msgsQuery.order === "function") {
+        try {
+          msgsQuery = msgsQuery.order("id", { ascending: false });
+        } catch {}
+      }
       if (typeof msgsQuery.range === "function") msgsQuery = msgsQuery.range(0, 99);
 
       // Fetch ALL data including Messages and real DB counts with .range()
@@ -1689,7 +1720,12 @@ const AdminDashboard = () => {
   const paginatedMessages = useMemo(() => {
     const start = (inboxPage - 1) * ADMIN_PAGE_SIZE;
     return (data?.messages || []).slice(start, start + ADMIN_PAGE_SIZE);
-  }, [data?.messages, inboxPage]);
+  }, [data?.messages, inboxPage, ADMIN_PAGE_SIZE]);
+
+  const paginatedPendingProfiles = useMemo(() => {
+    const start = (pendingPage - 1) * ADMIN_PAGE_SIZE;
+    return (pendingProfiles || []).slice(start, start + ADMIN_PAGE_SIZE);
+  }, [pendingProfiles, pendingPage, ADMIN_PAGE_SIZE]);
 
   // --- ACTIONS ---
   const handleMessageStatus = async (id, status) => {
@@ -2446,7 +2482,7 @@ const AdminDashboard = () => {
                 No profiles pending.
               </div>
             )}
-            {(pendingProfiles || []).map((d) => (
+            {(paginatedPendingProfiles || []).map((d) => (
               <div
                 key={d?.id}
                 className="bg-white p-5 rounded-2xl border border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 shadow-sm hover:shadow-md hover:border-gray-300 transition-all group"
@@ -2455,7 +2491,7 @@ const AdminDashboard = () => {
                 <div className="flex gap-5 items-center w-full">
                   {/* Avatar Area */}
                   <div className="w-16 h-16 rounded-2xl bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner">
-                    {d?.logo_url ? (
+                    {resolveMediaUrl(d?.logo_url) ? (
                       <img
                         src={resolveMediaUrl(d.logo_url)}
                         alt="logo"
@@ -2519,6 +2555,12 @@ const AdminDashboard = () => {
                 </button>
               </div>
             ))}
+            <TablePagination
+              currentPage={pendingPage}
+              totalItems={pendingProfiles.length}
+              pageSize={ADMIN_PAGE_SIZE}
+              onPageChange={setPendingPage}
+            />
           </div>
         )}
 
@@ -2689,7 +2731,7 @@ const AdminDashboard = () => {
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-12 rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0">
-                            {designer.logo_url ? (
+                            {resolveMediaUrl(designer.logo_url) ? (
                               <img
                                 src={resolveMediaUrl(designer.logo_url)}
                                 alt="logo"
@@ -2767,6 +2809,8 @@ const AdminDashboard = () => {
                                       className="w-full aspect-video rounded-lg border border-gray-200"
                                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                       allowFullScreen
+                                      loading="lazy"
+                                      referrerPolicy="strict-origin-when-cross-origin"
                                     />
                                   ) : (
                                     <div className="aspect-video bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-500 px-3 text-center">
@@ -2810,6 +2854,8 @@ const AdminDashboard = () => {
                                       className="w-full aspect-video rounded-lg border border-gray-200"
                                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                       allowFullScreen
+                                      loading="lazy"
+                                      referrerPolicy="strict-origin-when-cross-origin"
                                     />
                                   ) : (
                                     <div className="aspect-video bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-500 px-3 text-center">

@@ -1248,7 +1248,15 @@ const DesignerDashboard = () => {
     <form onSubmit={handleUpdateProfile} className="bg-white border border-gray-200 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl">
       <div className="flex flex-col items-center gap-4 border-b border-gray-200 pb-6">
         <div className="w-24 h-24 rounded-full bg-gray-50 border-2 border-gray-300 overflow-hidden relative">
-          {logoFile ? <img src={URL.createObjectURL(logoFile)} className="w-full h-full object-cover" /> : <img src={resolveMediaUrl(designer?.logo_url)} className="w-full h-full object-cover" />}
+          {logoFile ? (
+            <img src={URL.createObjectURL(logoFile)} className="w-full h-full object-cover" />
+          ) : resolveMediaUrl(designer?.logo_url) ? (
+            <img src={resolveMediaUrl(designer.logo_url)} className="w-full h-full object-cover" />
+          ) : (
+            <div className="h-full flex items-center justify-center font-bold text-3xl text-gray-400">
+              {designer?.name?.[0] || "?"}
+            </div>
+          )}
         </div>
         <div>
           <input type="file" onChange={(e) => setLogoFile(e.target.files[0])} className="hidden" id="logoUpload" />
@@ -1341,7 +1349,7 @@ const DesignerDashboard = () => {
         <aside className={`hidden md:flex w-72 bg-white border-r border-gray-200 flex-col p-6 sticky top-0 h-screen overflow-y-auto ${adminDesignerId ? 'pt-12' : ''}`}>
           <div className="flex flex-col items-center mb-10 text-center">
             <div className="w-24 h-24 bg-gray-100 rounded-full mb-4 border-2 border-gray-200 overflow-hidden shadow-sm">
-              {designer?.logo_url ? <img src={resolveMediaUrl(designer.logo_url)} className="w-full h-full object-cover" /> : <div className="h-full flex items-center justify-center font-bold text-3xl text-gray-400">{designer?.name?.[0]}</div>}
+              {resolveMediaUrl(designer?.logo_url) ? <img src={resolveMediaUrl(designer.logo_url)} className="w-full h-full object-cover" /> : <div className="h-full flex items-center justify-center font-bold text-3xl text-gray-400">{designer?.name?.[0]}</div>}
             </div>
             <h2 className="text-gray-900 font-bold text-lg truncate w-full">{designer?.name}</h2>
             <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 text-[10px] font-bold tracking-widest uppercase px-2 py-1 rounded mt-2">Verified Partner</span>

@@ -4,6 +4,7 @@ import { Menu, X, User, LogOut, ShieldAlert, Loader2 } from "lucide-react";
 import { useCurrentUser, useUserProfile } from "../hooks/useAuth";
 import { signOut } from "../services/authService";
 import { useQueryClient } from "@tanstack/react-query";
+import { DESIGNER_APP_URL } from "../config";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -56,7 +57,7 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-8">
             {profile?.role !== "admin" && role !== "admin" && (
               <a
-                href={isDesigner ? "https://designers-v.netlify.app/dashboard" : "https://designers-v.netlify.app"}
+                href={isDesigner ? `${DESIGNER_APP_URL}/dashboard` : DESIGNER_APP_URL}
                 className="bg-orange-50 text-brand-accent px-4 py-1.5 rounded-full font-bold text-sm border border-orange-200 hover:bg-orange-100 transition-colors shadow-sm whitespace-nowrap"
               >
                 {isDesigner ? "Go to Dashboard" : "Are you a designer? Join"}
@@ -174,7 +175,7 @@ const Navbar = () => {
           </Link>
           {profile?.role !== "admin" && role !== "admin" && (
             <a
-              href={isDesigner ? "https://designers-v.netlify.app/dashboard" : "https://designers-v.netlify.app"}
+              href={isDesigner ? `${DESIGNER_APP_URL}/dashboard` : DESIGNER_APP_URL}
               onClick={() => setIsOpen(false)}
               className="block px-4 py-3 bg-orange-50 text-brand-accent font-bold rounded-xl border border-orange-200 text-center text-sm min-h-[44px] flex items-center justify-center"
             >

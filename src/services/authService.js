@@ -97,7 +97,7 @@ export const handleLogout = signOut;
 
 /** Send password reset email. */
 export const sendPasswordResetEmail = async (email) => {
-  const redirectOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://vishwakarmans.netlify.app';
+  const redirectOrigin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : (import.meta.env.VITE_MAIN_APP_URL || 'https://vishwakarmans.com').replace(/\/+$/, '');
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
     // This tells the Supabase server to redirect here after verifying the click
     redirectTo: `${redirectOrigin}/update-password`,

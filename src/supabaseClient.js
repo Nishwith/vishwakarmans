@@ -1,28 +1,22 @@
-import { createClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config'
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+const isProdDomain =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "vishwakarmans.com" ||
+    window.location.hostname.endsWith(".vishwakarmans.com"));
 
-// Global Auth State & Token Recovery listener (Task 1 & Task 4)
-if (typeof window !== "undefined" && typeof supabase?.auth?.onAuthStateChange === "function") {
-  supabase.auth.onAuthStateChange(async (event, session) => {
-    // Task 4: Diagnostics
-
-    const isExpired = session?.expires_at ? session.expires_at < Date.now() / 1000 : false;
-    const isInvalid = !session || isExpired;
-
-    if (
-      event === "SIGNED_OUT" ||
-      (event === "TOKEN_REFRESHED" && isInvalid) ||
-      (event === "USER_UPDATED" && isInvalid)
-    ) {
-      try {
-        await supabase.auth.signOut();
-      } catch {
-        // ignore
+export const supabase = createBrowserClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  isProdDomain
+    ? {
+        cookieOptions: {
+          domain: ".vishwakarmans.com",
+          path: "/",
+          sameSite: "lax",
+          secure: true,
+        },
       }
-      localStorage.clear();
-      sessionStorage.clear();
-    }
-  });
-}
+    : {}
+);

@@ -216,6 +216,8 @@ const Designers = ({
     { label: "25+ Projects", value: 25 },
   ];
 
+  const isFirstMount = useRef(true);
+
   useEffect(() => {
     if (propCity) {
       setSelectedCity(propCity);
@@ -230,13 +232,35 @@ const Designers = ({
     }
   }, [propCategory]);
 
+  const searchParamsString = searchParams.toString();
   useEffect(() => {
     const categoryParam = searchParams.get("category");
     if (categoryParam) setSelectedType(categoryParam);
     fetchDesigners(0, false);
-  }, [searchParams]);
+  }, [searchParamsString]);
 
-  const fetchDesigners = async (targetPage = 0, append = false) => {
+  // Reset to page 0 automatically whenever search text, city, or category filters change
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetchDesigners(0, false, userCoords, sortBy, radiusKm, selectedCity, selectedType, searchTerm);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [selectedCity, selectedType, searchTerm]);
+
+  const fetchDesigners = async (
+    targetPage = 0,
+    append = false,
+    activeCoords = userCoords,
+    activeSort = sortBy,
+    activeRadius = radiusKm,
+    activeCity = selectedCity,
+    activeType = selectedType,
+    activeSearch = searchTerm
+  ) => {
     if (append) {
       setLoadingMore(true);
     } else {
@@ -246,46 +270,119 @@ const Designers = ({
       const from = targetPage * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      let query = supabase
-        .from("designers")
-        .select(PUBLIC_DESIGNER_CARD_COLUMNS)
-        .eq("is_verified", true)
-        .eq("is_public", true)
-        .eq("is_subscription_active", true)
-        .order("priority_score", { ascending: false })
-        .order("rating_avg", { ascending: false });
+      let validDesigners = null;
+      let hasNextPage = false;
 
-      if (typeof query.range === "function") {
-        query = query.range(from, to);
+      // When sorting by distance with coordinates, attempt PostGIS RPC
+      if (
+        activeSort === "distance" &&
+        activeCoords?.latitude != null &&
+        activeCoords?.longitude != null &&
+        typeof supabase?.rpc === "function"
+      ) {
+        try {
+          const { data: rpcData, error: rpcError } = await supabase.rpc(
+            "get_nearby_designers",
+            {
+              user_lat: activeCoords.latitude,
+              user_lng: activeCoords.longitude,
+              radius_km: activeRadius || 50,
+              filter_city:
+                activeCity === "All" || activeCity === "Other"
+                  ? null
+                  : activeCity,
+              filter_category:
+                activeType === "All" || activeType?.toLowerCase() === "all" ? null : activeType,
+              page_limit: PAGE_SIZE + 1,
+              page_offset: from,
+            }
+          );
+          if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
+            hasNextPage = rpcData.length > PAGE_SIZE;
+            validDesigners = hasNextPage ? rpcData.slice(0, PAGE_SIZE) : rpcData;
+          }
+        } catch {
+          // Graceful fallback to client query
+        }
       }
 
-      const { data, error } = await query;
+      if (!validDesigners) {
+        let query = supabase
+          .from("designers")
+          .select(PUBLIC_DESIGNER_CARD_COLUMNS)
+          .eq("is_verified", true)
+          .eq("is_public", true)
+          .eq("is_subscription_active", true);
 
-      if (error) throw error;
+        // Server-side filtering by city if specified
+        if (activeCity && activeCity !== "All" && activeCity !== "Other") {
+          const normCity = activeCity.toLowerCase().trim();
+          if (normCity === "bangalore" || normCity === "bengaluru") {
+            if (typeof query.or === "function") {
+              query = query.or("city.ilike.%bangalore%,city.ilike.%bengaluru%");
+            }
+          } else if (typeof query.ilike === "function") {
+            query = query.ilike("city", `%${activeCity}%`);
+          }
+        }
 
-      // Filter out Expired Profiles
-      const now = new Date();
-      const validDesigners = (data || []).filter((designer) => isDesignerPubliclyEligible(designer, now));
+        // Server-side filtering by category if specified
+        if (activeType && activeType !== "All" && activeType?.toLowerCase() !== "all") {
+          if (typeof query.or === "function") {
+            query = query.or(`designer_type.eq.${activeType.toLowerCase()},designer_type.eq.both`);
+          }
+        }
 
-      // Sort Active Featured Designers to top with deterministic tiebreaker
-      validDesigners.sort((a, b) => {
-        const isAFeatured =
-          a.featured_status === "featured" &&
-          a.featured_expiry &&
-          new Date(a.featured_expiry) > now;
-        const isBFeatured =
-          b.featured_status === "featured" &&
-          b.featured_expiry &&
-          new Date(b.featured_expiry) > now;
+        // Server-side filtering by search term if specified
+        if (activeSearch && activeSearch.trim() && typeof query.ilike === "function") {
+          query = query.ilike("name", `%${activeSearch.trim()}%`);
+        }
 
-        if (isAFeatured && !isBFeatured) return -1;
-        if (!isAFeatured && isBFeatured) return 1;
-        return (
-          (Number(b.priority_score) || 0) - (Number(a.priority_score) || 0) ||
-          (Number(b.rating_avg) || 0) - (Number(a.rating_avg) || 0) ||
-          String(a.id).localeCompare(String(b.id))
+        // Deterministic ordering: priority_score DESC, rating_avg DESC, id ASC
+        query = query
+          .order("priority_score", { ascending: false })
+          .order("rating_avg", { ascending: false })
+          .order("id", { ascending: true });
+
+        // Query PAGE_SIZE + 1 to detect hasNextPage cleanly
+        if (typeof query.range === "function") {
+          query = query.range(from, to + 1);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+
+        // Filter out Expired Profiles
+        const now = new Date();
+        const eligible = (data || []).filter((designer) =>
+          isDesignerPubliclyEligible(designer, now)
         );
-      });
+
+        hasNextPage = eligible.length > PAGE_SIZE;
+        validDesigners = hasNextPage ? eligible.slice(0, PAGE_SIZE) : eligible;
+
+        // Sort Active Featured Designers to top with deterministic tiebreaker
+        validDesigners.sort((a, b) => {
+          const isAFeatured =
+            a.featured_status === "featured" &&
+            a.featured_expiry &&
+            new Date(a.featured_expiry) > now;
+          const isBFeatured =
+            b.featured_status === "featured" &&
+            b.featured_expiry &&
+            new Date(b.featured_expiry) > now;
+
+          if (isAFeatured && !isBFeatured) return -1;
+          if (!isAFeatured && isBFeatured) return 1;
+          return (
+            (Number(b.priority_score) || 0) -
+              (Number(a.priority_score) || 0) ||
+            (Number(b.rating_avg) || 0) - (Number(a.rating_avg) || 0) ||
+            String(a.id).localeCompare(String(b.id))
+          );
+        });
+      }
 
       if (append) {
         setDesigners((prev) => [...prev, ...validDesigners]);
@@ -294,7 +391,7 @@ const Designers = ({
       }
 
       setPage(targetPage);
-      setHasMore((data || []).length === PAGE_SIZE);
+      setHasMore(hasNextPage || (validDesigners || []).length === PAGE_SIZE);
     } catch (error) {
       console.error("Error fetching designers:", error.message);
       if (!append) setDesigners([]);
@@ -313,15 +410,20 @@ const Designers = ({
         const coords = await getPosition();
         setUserCoords(coords);
         toast.success(
-          coords.isFallback
+          coords?.approximate
+            ? "Sorting by distance (approximate location from network)!"
+            : coords?.isFallback
             ? "Sorting by distance from default location (Hyderabad)!"
             : "Sorting by distance from your location!"
         );
+        fetchDesigners(0, false, coords, "distance");
       } catch (err) {
         toast.error("Could not obtain location for distance sorting.");
       } finally {
         setGeoLoading(false);
       }
+    } else {
+      fetchDesigners(0, false, userCoords, newSort);
     }
   };
 
@@ -334,12 +436,15 @@ const Designers = ({
     setSortBy("featured");
     setUserCoords(null);
     setSelectedCity("All");
-    fetchDesigners();
+    fetchDesigners(0, false, null, "featured");
     toast.success("Distance sort cleared.");
   };
 
   const handleRadiusChange = (newRadius) => {
     setRadiusKm(newRadius);
+    if (sortBy === "distance" && userCoords) {
+      fetchDesigners(0, false, userCoords, "distance", newRadius);
+    }
   };
 
   // Compare selection toggle (Max 3)
@@ -376,11 +481,17 @@ const Designers = ({
             (tag || "").toLowerCase().includes(search)
           ));
 
-      // 2. City
-      const matchesCity =
-        selectedCity === "All" ||
-        selectedCity === "Other" ||
-        (designer.city && designer.city.toLowerCase() === selectedCity.toLowerCase());
+      // 2. City (with case-insensitive matching & Bangalore/Bengaluru equivalence)
+      const matchesCity = (() => {
+        if (selectedCity === "All" || selectedCity === "Other") return true;
+        if (!designer.city) return false;
+        const dCity = designer.city.toLowerCase().trim();
+        const sCity = selectedCity.toLowerCase().trim();
+        if (dCity === sCity) return true;
+        const isDBangalore = dCity === "bangalore" || dCity === "bengaluru";
+        const isSBangalore = sCity === "bangalore" || sCity === "bengaluru";
+        return isDBangalore && isSBangalore;
+      })();
 
       // 3. Category / Designer Type
       const matchesType =
@@ -726,16 +837,6 @@ const Designers = ({
           )}
         </AnimatePresence>
       </div>
-
-      
-
-      {/* Distance status badge */}
-      {sortBy === "distance" && (
-        <div className="max-w-7xl mx-auto mb-4 flex items-center gap-2 text-sm text-gray-600 bg-orange-50/80 border border-orange-200/60 px-4 py-2 rounded-xl">
-          <Navigation size={16} className="text-brand-accent animate-pulse" />
-          <span>Sorted by distance from your location</span>
-        </div>
-      )}
 
       {/* GRID SECTION */}
       <div className="max-w-7xl mx-auto">

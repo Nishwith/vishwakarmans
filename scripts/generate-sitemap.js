@@ -7,6 +7,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const BASE_URL = "https://vishwakarmans.com";
+export const LAUNCH_CITIES = [
+  "hyderabad",
+  "bangalore",
+  "kolkata",
+  "delhi",
+  "mumbai",
+  "chennai",
+];
+
+export const LAUNCH_CATEGORIES = ["interior", "commercial"];
+
 export const SEO_CATEGORIES = ["interior", "exterior", "commercial", "home", "office"];
 
 export const STATIC_ROUTES = [
@@ -41,14 +52,15 @@ export async function generateSitemap(supabase) {
     }));
   }
 
-  // 2. Filter unique cities
+  // 2. Filter unique cities (seeded with the 6 core launch cities)
   const uniqueCities = [
-    ...new Set(
-      designers
+    ...new Set([
+      ...LAUNCH_CITIES,
+      ...designers
         .map((d) => d.city)
         .filter((c) => typeof c === "string" && c.trim().length > 0)
-        .map((c) => c.trim())
-    ),
+        .map((c) => c.trim()),
+    ]),
   ];
 
   const xmlUrls = [];

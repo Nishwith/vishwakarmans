@@ -7,6 +7,7 @@ import {
   Youtube,
   ArrowRight,
 } from "lucide-react";
+import { DESIGNER_APP_URL } from "../config";
 
 const Footer = () => {
   return (
@@ -123,8 +124,8 @@ const Footer = () => {
                   </Link>
                 </li>
                 <li>
-                  <Link
-                    to="/dashboard"
+                  <a
+                    href={`${DESIGNER_APP_URL}/dashboard`}
                     className="text-gray-500 hover:text-brand-accent font-medium text-sm transition-colors flex items-center gap-2 group"
                   >
                     <ArrowRight
@@ -132,7 +133,7 @@ const Footer = () => {
                       className="opacity-0 -ml-4 group-hover:opacity-100 group-hover:ml-0 transition-all text-brand-accent"
                     />{" "}
                     Dashboard
-                  </Link>
+                  </a>
                 </li>
               </ul>
             </div>

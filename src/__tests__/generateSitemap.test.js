@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { generateSitemap, SEO_CATEGORIES, STATIC_ROUTES } from "../../scripts/generate-sitemap.js";
+import {
+  generateSitemap,
+  SEO_CATEGORIES,
+  STATIC_ROUTES,
+  LAUNCH_CITIES,
+  LAUNCH_CATEGORIES,
+} from "../../scripts/generate-sitemap.js";
 
 describe("generateSitemap", () => {
   it("generates compliant sitemap XML with static, category/city, and designer pages", async () => {
@@ -36,6 +42,13 @@ describe("generateSitemap", () => {
     // SEO Categories for Bangalore
     for (const cat of SEO_CATEGORIES) {
       expect(xml).toContain(`<loc>https://vishwakarmans.com/designers/${cat}/bangalore</loc>`);
+    }
+
+    // All 12 programmatic Launch URLs (6 cities x 2 categories: interior & commercial)
+    for (const city of LAUNCH_CITIES) {
+      for (const cat of LAUNCH_CATEGORIES) {
+        expect(xml).toContain(`<loc>https://vishwakarmans.com/designers/${cat}/${city}</loc>`);
+      }
     }
 
     // Designer profiles with slug and id fallback

@@ -1,14 +1,12 @@
 import { useState, useCallback } from "react";
+import { getCurrentLocation, DEFAULT_COORDINATES } from "../utils/geolocation";
 
-export const DEFAULT_COORDINATES = {
-  latitude: 17.3850,
-  longitude: 78.4867,
-  isFallback: true,
-};
+export { DEFAULT_COORDINATES };
 
 /**
  * Custom hook to request and manage user geolocation coordinates.
- * Falls back to central Hyderabad coordinates (17.3850, 78.4867) on denial or failure.
+ * Uses fast, non-hanging strategy with IP-based fallback (approximate: true).
+ * Falls back to central Hyderabad coordinates on denial.
  */
 export const useGeolocation = (defaultCoords = DEFAULT_COORDINATES) => {
   const [coordinates, setCoordinates] = useState(null);
@@ -17,53 +15,35 @@ export const useGeolocation = (defaultCoords = DEFAULT_COORDINATES) => {
   const [permissionDenied, setPermissionDenied] = useState(false);
 
   const getPosition = useCallback(
-    (options = { enableHighAccuracy: true, timeout: 10000 }) => {
-      return new Promise((resolve) => {
-        if (typeof window === "undefined" || !navigator.geolocation) {
-          const errMsg = "Geolocation is not supported by your browser.";
-          setError(errMsg);
-          setCoordinates(defaultCoords);
-          resolve(defaultCoords);
-          return;
-        }
+    async (options) => {
+      setLoading(true);
+      setError(null);
+      setPermissionDenied(false);
 
-        setLoading(true);
-        setError(null);
-        setPermissionDenied(false);
+      try {
+        const loc = await getCurrentLocation(options);
+        const coords = {
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          approximate: Boolean(loc.approximate),
+          isFallback: Boolean(loc.isFallback),
+          city: loc.city || "",
+        };
+        setCoordinates(coords);
+        setLoading(false);
+        return coords;
+      } catch (err) {
+        const isDenied = Boolean(err?.isDenied || err?.code === 1);
+        const message = isDenied
+          ? "Location permission denied. Using default location (Hyderabad)."
+          : err?.message || "Unable to retrieve your location.";
 
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const coords = {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              isFallback: false,
-            };
-            setCoordinates(coords);
-            setLoading(false);
-            resolve(coords);
-          },
-          (geoError) => {
-            let message = "Unable to retrieve your location.";
-            let isDenied = false;
-
-            if (geoError.code === 1) {
-              message = "Location permission denied. Using default location (Hyderabad).";
-              isDenied = true;
-            } else if (geoError.code === 2) {
-              message = "Location position unavailable. Using default location.";
-            } else if (geoError.code === 3) {
-              message = "Location request timed out. Using default location.";
-            }
-
-            setPermissionDenied(isDenied);
-            setError(message);
-            setCoordinates(defaultCoords);
-            setLoading(false);
-            resolve(defaultCoords);
-          },
-          options
-        );
-      });
+        setPermissionDenied(isDenied);
+        setError(message);
+        setCoordinates(defaultCoords);
+        setLoading(false);
+        return defaultCoords;
+      }
     },
     [defaultCoords]
   );
@@ -79,4 +59,3 @@ export const useGeolocation = (defaultCoords = DEFAULT_COORDINATES) => {
 };
 
 export default useGeolocation;
-

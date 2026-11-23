@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { signInWithPassword, sendPasswordResetEmail } from "../services/authService";
 import { supabase } from "../supabaseClient";
 import GoogleSignInButton from "../components/GoogleSignInButton";
+import { DESIGNER_APP_URL } from "../config";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -77,7 +78,7 @@ const Login = () => {
       }
 
       if (userProfile?.role === "designer") {
-        window.location.href = "https://designers-v.netlify.app";
+        window.location.href = `${DESIGNER_APP_URL}/dashboard`;
         return;
       }
 
@@ -237,7 +238,7 @@ const Login = () => {
             Want to showcase your portfolio, connect with homeowners, and grow your firm? Join our exclusive network of professionals.
           </p>
           <div className="pt-4">
-            <a href="https://designers-v.netlify.app" className="inline-block px-8 py-4 bg-white text-brand-accent font-bold rounded-xl shadow-2xl hover:shadow-orange-900/20 hover:-translate-y-1 transition-all active:scale-95">
+            <a href={DESIGNER_APP_URL} className="inline-block px-8 py-4 bg-white text-brand-accent font-bold rounded-xl shadow-2xl hover:shadow-orange-900/20 hover:-translate-y-1 transition-all active:scale-95">
               Sign up in Designers Portal
             </a>
           </div>

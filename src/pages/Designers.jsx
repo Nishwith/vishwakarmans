@@ -838,6 +838,14 @@ const Designers = ({
         </AnimatePresence>
       </div>
 
+      {/* Distance status badge */}
+      {sortBy === "distance" && (
+        <div className="max-w-7xl mx-auto mb-4 flex items-center gap-2 text-sm text-gray-600 bg-orange-50/80 border border-orange-200/60 px-4 py-2 rounded-xl">
+          <Navigation size={16} className="text-brand-accent animate-pulse" />
+          <span>Sorted by distance from your location</span>
+        </div>
+      )}
+
       {/* GRID SECTION */}
       <div className="max-w-7xl mx-auto">
         {loading || geoLoading ? (

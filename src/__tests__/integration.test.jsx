@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, test, expect, beforeEach } from 'vitest';
@@ -207,7 +207,7 @@ describe('Vishwakarmans Client B2C Application Integration Tests', () => {
     await screen.findByText(/Studio Elite/i);
 
     const sortSelect = screen.getByLabelText(/Sort Designers/i);
-    await user.selectOptions(sortSelect, 'distance');
+    fireEvent.change(sortSelect, { target: { value: 'distance' } });
 
     expect(getCurrentPositionMock).toHaveBeenCalled();
 

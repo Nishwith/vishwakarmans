@@ -1479,20 +1479,11 @@ const AdminDashboard = () => {
         return;
       }
 
-      // Explicit column selection and deterministic ordering with server-side range pagination
-      const APPLICATION_COLUMNS =
-        "id, user_id, org_name, designer_type, city, phone, email, website_url, portfolio_link, status, created_at, experience_years, message, notes";
-
-      const DESIGNER_COLUMNS =
-        "id, user_id, name, email, phone, city, designer_type, logo_url, rating_avg, projects_completed, experience_years, website_url, service_area_lat, service_area_lng, location, style_tags, video_link, video_link_1, video_link_2, video_status, videos_approved, is_verified, is_public, is_subscription_active, subscription_end, featured_status, featured_expiry, priority_score, created_at, about_text, bio, budget_range, onboarding_completed, profile_completed, designer_projects(count)";
-
-      const MESSAGE_COLUMNS =
-        "id, name, email, phone, subject, message, created_at, status, user_id";
-
+      // Safe working column selection and deterministic ordering with server-side range pagination
       const fetchRequests = () => {
         let query = supabase
           .from("designer_applications")
-          .select(APPLICATION_COLUMNS, { count: "exact" })
+          .select("*", { count: "exact" })
           .eq("status", "pending")
           .order("created_at", { ascending: false });
         if (typeof query.order === "function") {
@@ -1507,7 +1498,7 @@ const AdminDashboard = () => {
       const fetchVerifications = () => {
         let query = supabase
           .from("designers")
-          .select(DESIGNER_COLUMNS, { count: "exact" })
+          .select("*, designer_projects(count)", { count: "exact" })
           .order("created_at", { ascending: false });
         if (typeof query.order === "function") {
           try {
@@ -1523,7 +1514,7 @@ const AdminDashboard = () => {
 
       let msgsQuery = supabase
         .from("contact_messages")
-        .select(MESSAGE_COLUMNS, { count: "exact" })
+        .select("*", { count: "exact" })
         .order("created_at", { ascending: false });
       if (typeof msgsQuery.order === "function") {
         try {
